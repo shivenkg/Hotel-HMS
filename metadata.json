@@ -1,0 +1,6 @@
+{
+  "name": "The Grand Azure Hotel Management System",
+  "description": "Comprehensive Small to Mid Hotel Management System (HMS) featuring front desk reservations, tape chart calendar, housekeeping operations, dynamic pricing, GST invoicing, POS, and OTA channel manager.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
