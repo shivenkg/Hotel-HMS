@@ -36,12 +36,12 @@ export const AuditView: React.FC = () => {
   };
 
   return (
-    <div className="animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+    <div className="animate-fade-in responsive-view-container">
       
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="responsive-action-header">
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+          <h2 style={{ fontSize: 'clamp(18px, 2vw, 20px)', fontWeight: '800', color: '#0F172A', margin: 0 }}>
             Channel Manager Sync & Security Audit
           </h2>
           <p style={{ fontSize: '13px', color: '#64748B', marginTop: '4px' }}>
@@ -59,7 +59,7 @@ export const AuditView: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         
         {/* Channel Status Overview */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+        <div className="responsive-auto-grid">
           {[
             { name: 'Booking.com XML API', status: '2-Way Live', latency: '120ms', icon: '🏨' },
             { name: 'Expedia Partner Central', status: '2-Way Live', latency: '145ms', icon: '✈️' },
@@ -80,7 +80,7 @@ export const AuditView: React.FC = () => {
         </div>
 
         {/* Channel Sync Events */}
-        <div className="lodgify-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="lodgify-card responsive-table-wrapper" style={{ padding: 0 }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #E8EEF5', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Globe size={18} color="#0F172A" />
             <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
@@ -116,7 +116,7 @@ export const AuditView: React.FC = () => {
         </div>
 
         {/* Security Audit Trails */}
-        <div className="lodgify-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="lodgify-card responsive-table-wrapper" style={{ padding: 0 }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #E8EEF5', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <History size={18} color="#0F172A" />
             <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', margin: 0 }}>

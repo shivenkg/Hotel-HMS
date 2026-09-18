@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, AlertCircle } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, AlertCircle, Sun, Moon } from 'lucide-react';
 
 interface LoginViewProps {
   onLoginSuccess: (user: any) => void;
@@ -12,6 +12,30 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('theme') || localStorage.getItem('hms_theme');
+    if (saved === 'dark' || saved === 'light') return saved;
+    return document.documentElement.classList.contains('dark') || document.body.classList.contains('dark') ? 'dark' : 'light';
+  });
+
+  const toggleTheme = () => {
+    const next = theme === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    if (next === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.body.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+      document.body.setAttribute('data-theme', 'light');
+    }
+    localStorage.setItem('theme', next);
+    localStorage.setItem('hms_theme', next);
+    window.dispatchEvent(new CustomEvent('hms_theme_changed', { detail: next }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +120,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     <div style={{
       minHeight: '100vh',
       width: '100vw',
-      backgroundColor: '#F5F7FA',
+      backgroundColor: 'var(--bg-app)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -104,6 +128,47 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       position: 'relative',
       overflow: 'hidden'
     }}>
+      {/* Top Right Quick Theme Switcher */}
+      <div style={{
+        position: 'absolute',
+        top: '20px',
+        right: '24px',
+        zIndex: 10
+      }}>
+        <button
+          id="login-theme-toggle"
+          onClick={toggleTheme}
+          title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 14px',
+            borderRadius: '9999px',
+            border: '1px solid var(--border-subtle)',
+            backgroundColor: 'var(--bg-card)',
+            color: 'var(--text-main)',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            boxShadow: 'var(--shadow-sm)',
+            transition: 'all 0.18s ease'
+          }}
+        >
+          {theme === 'light' ? (
+            <>
+              <Moon size={15} color="#0E94A8" />
+              <span>Dark Mode</span>
+            </>
+          ) : (
+            <>
+              <Sun size={15} color="#FBBF24" />
+              <span>Light Mode</span>
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Background soft ambient glowing circles */}
       <div style={{
         position: 'absolute',
@@ -112,7 +177,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         width: '500px',
         height: '500px',
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(212, 240, 91, 0.25) 0%, rgba(212, 240, 91, 0) 70%)',
+        background: 'radial-gradient(circle, rgba(14, 148, 168, 0.18) 0%, rgba(14, 148, 168, 0) 70%)',
         filter: 'blur(40px)',
         zIndex: 0
       }} />
@@ -123,7 +188,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         width: '500px',
         height: '500px',
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(167, 243, 208, 0.3) 0%, rgba(167, 243, 208, 0) 70%)',
+        background: 'radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0) 70%)',
         filter: 'blur(40px)',
         zIndex: 0
       }} />
@@ -136,9 +201,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         position: 'relative',
         zIndex: 1,
         borderRadius: '24px',
-        boxShadow: '0 20px 40px -10px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05)',
-        backgroundColor: '#FFFFFF',
-        border: '1px solid #E5EBF2'
+        boxShadow: 'var(--shadow-card)',
+        backgroundColor: 'var(--bg-card)',
+        border: '1px solid var(--border-card)'
       }}>
         {/* Brand Logo & Version Pill */}
         <div style={{
@@ -160,7 +225,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <div key={i} style={{
                 width: '5px',
                 height: '5px',
-                backgroundColor: '#0F172A',
+                backgroundColor: 'var(--color-primary)',
                 borderRadius: '1.5px'
               }} />
             ))}
@@ -168,19 +233,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           <span style={{
             fontSize: '24px',
             fontWeight: '800',
-            color: '#0F172A',
+            color: 'var(--text-main)',
             letterSpacing: '-0.5px'
           }}>
             Lodgify
           </span>
           <span style={{
-            backgroundColor: '#F4FBD0',
-            color: '#4D6B00',
+            backgroundColor: 'var(--color-primary-light)',
+            color: 'var(--color-primary)',
             fontSize: '11px',
             fontWeight: '700',
             padding: '2px 8px',
             borderRadius: '9999px',
-            border: '1px solid #D4F05B'
+            border: '1px solid var(--border-subtle)'
           }}>
             v1.0
           </span>
@@ -191,30 +256,30 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           <h1 style={{
             fontSize: '22px',
             fontWeight: '800',
-            color: '#0F172A',
+            color: 'var(--text-main)',
             margin: '0 0 6px 0',
             letterSpacing: '-0.3px'
           }}>
             Welcome Back
           </h1>
-          <p style={{ fontSize: '13px', color: '#64748B', margin: 0 }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
             Sign in to access your hotel operations portal
           </p>
         </div>
 
         {/* Quick Role Demo Selector */}
         <div style={{
-          backgroundColor: '#F8FAFC',
-          border: '1px solid #E2E8F0',
+          backgroundColor: 'var(--bg-subtle)',
+          border: '1px solid var(--border-subtle)',
           borderRadius: '16px',
           padding: '12px 14px',
           marginBottom: '20px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Quick-Select Role Account
             </span>
-            <span style={{ fontSize: '10px', color: '#0F172A', fontWeight: '700', backgroundColor: '#E2E8F0', padding: '2px 8px', borderRadius: '9999px' }}>
+            <span style={{ fontSize: '10px', color: 'var(--text-main)', fontWeight: '700', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-subtle)', padding: '2px 8px', borderRadius: '9999px' }}>
               4 Profiles
             </span>
           </div>
@@ -229,16 +294,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 gap: '6px',
                 padding: '8px 10px',
                 borderRadius: '10px',
-                border: username === 'admin' ? '2px solid #0F172A' : '1px solid #E2E8F0',
-                backgroundColor: username === 'admin' ? '#F4FBD0' : '#FFFFFF',
+                border: username === 'admin' ? '2px solid var(--color-primary)' : '1px solid var(--border-subtle)',
+                backgroundColor: username === 'admin' ? 'var(--color-primary-light)' : 'var(--bg-card)',
+                color: 'var(--text-main)',
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
             >
               <span style={{ fontSize: '14px' }}>👑</span>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: '800', color: '#0F172A' }}>Admin</div>
-                <div style={{ fontSize: '10px', color: '#64748B' }}>admin / admin123</div>
+                <div style={{ fontSize: '11px', fontWeight: '800', color: username === 'admin' ? 'var(--color-primary)' : 'var(--text-main)' }}>Admin</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>admin / admin123</div>
               </div>
             </button>
 
@@ -251,8 +317,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 gap: '6px',
                 padding: '8px 10px',
                 borderRadius: '10px',
-                border: username === 'reception' ? '2px solid #0284C7' : '1px solid #E2E8F0',
-                backgroundColor: username === 'reception' ? '#E0F2FE' : '#FFFFFF',
+                border: username === 'reception' ? '2px solid #0284C7' : '1px solid var(--border-subtle)',
+                backgroundColor: username === 'reception' ? 'rgba(2, 132, 199, 0.15)' : 'var(--bg-card)',
+                color: 'var(--text-main)',
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
@@ -260,7 +327,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <span style={{ fontSize: '14px' }}>🏨</span>
               <div>
                 <div style={{ fontSize: '11px', fontWeight: '800', color: '#0284C7' }}>Reception</div>
-                <div style={{ fontSize: '10px', color: '#64748B' }}>reception / rec123</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>reception / rec123</div>
               </div>
             </button>
 
@@ -273,8 +340,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 gap: '6px',
                 padding: '8px 10px',
                 borderRadius: '10px',
-                border: username === 'cleaner' ? '2px solid #059669' : '1px solid #E2E8F0',
-                backgroundColor: username === 'cleaner' ? '#D1FAE5' : '#FFFFFF',
+                border: username === 'cleaner' ? '2px solid #059669' : '1px solid var(--border-subtle)',
+                backgroundColor: username === 'cleaner' ? 'rgba(5, 150, 105, 0.15)' : 'var(--bg-card)',
+                color: 'var(--text-main)',
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
@@ -282,7 +350,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <span style={{ fontSize: '14px' }}>🧹</span>
               <div>
                 <div style={{ fontSize: '11px', fontWeight: '800', color: '#059669' }}>Housekeeping</div>
-                <div style={{ fontSize: '10px', color: '#64748B' }}>cleaner / clean123</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>cleaner / clean123</div>
               </div>
             </button>
 
@@ -295,8 +363,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 gap: '6px',
                 padding: '8px 10px',
                 borderRadius: '10px',
-                border: username === 'chef' ? '2px solid #DC2626' : '1px solid #E2E8F0',
-                backgroundColor: username === 'chef' ? '#FEE2E2' : '#FFFFFF',
+                border: username === 'chef' ? '2px solid #DC2626' : '1px solid var(--border-subtle)',
+                backgroundColor: username === 'chef' ? 'rgba(220, 38, 38, 0.15)' : 'var(--bg-card)',
+                color: 'var(--text-main)',
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
@@ -304,7 +373,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <span style={{ fontSize: '14px' }}>🍳</span>
               <div>
                 <div style={{ fontSize: '11px', fontWeight: '800', color: '#DC2626' }}>Kitchen</div>
-                <div style={{ fontSize: '10px', color: '#64748B' }}>chef / chef123</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>chef / chef123</div>
               </div>
             </button>
           </div>
@@ -313,9 +382,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         {/* Error Alert */}
         {errorMessage && (
           <div style={{
-            backgroundColor: '#FEE2E2',
-            border: '1px solid #FCA5A5',
-            color: '#991B1B',
+            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            color: '#F87171',
             borderRadius: '12px',
             padding: '12px 14px',
             fontSize: '12px',
@@ -338,13 +407,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               display: 'block',
               fontSize: '12px',
               fontWeight: '700',
-              color: '#0F172A',
+              color: 'var(--text-main)',
               marginBottom: '6px'
             }}>
               User ID
             </label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <User size={16} color="#94A3B8" style={{ position: 'absolute', left: '16px' }} />
+              <User size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '16px' }} />
               <input
                 type="text"
                 required
@@ -365,15 +434,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           {/* Password Field */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-main)' }}>
                 Password
               </label>
-              <span style={{ fontSize: '11px', color: '#64748B', cursor: 'pointer' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 Forgot?
               </span>
             </div>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Lock size={16} color="#94A3B8" style={{ position: 'absolute', left: '16px' }} />
+              <Lock size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '16px' }} />
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
@@ -398,7 +467,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
-                  color: '#94A3B8',
+                  color: 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center'
                 }}
@@ -410,12 +479,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
           {/* Remember Me */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#475569' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-muted)' }}>
               <input
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                style={{ accentColor: '#D4F05B' }}
+                style={{ accentColor: 'var(--color-primary)' }}
               />
               <span>Remember this session</span>
             </label>
@@ -435,12 +504,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               padding: '13px 20px',
               fontSize: '14px',
               marginTop: '8px',
-              borderRadius: '9999px',
-              boxShadow: '0 4px 14px rgba(212, 240, 91, 0.4)'
+              borderRadius: '9999px'
             }}
           >
             <span>{isLoading ? 'Verifying Credentials...' : 'Sign In to Dashboard'}</span>
-            <ArrowRight size={16} color="#0F172A" />
+            <ArrowRight size={16} />
           </button>
         </form>
 
@@ -448,7 +516,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         <div style={{
           marginTop: '28px',
           paddingTop: '20px',
-          borderTop: '1px solid #F1F5F9',
+          borderTop: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

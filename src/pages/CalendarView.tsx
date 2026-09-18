@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, 
   Calendar as CalendarIcon, 
@@ -12,20 +13,8 @@ import {
   ChevronDown,
   ChevronUp,
   UserCheck,
-  CreditCard,
-  Clock,
-  Layers,
-  SlidersHorizontal,
-  RotateCcw
+  CreditCard
 } from 'lucide-react';
-import { 
-  RoomStatusLegend, 
-  RoomStatusBadge, 
-  RoomHousekeepingStatus, 
-  ROOM_STATUS_MAP 
-} from '../components/RoomStatusLegend';
-import { HourlyTimelineView } from '../components/HourlyTimelineView';
-import { NewBookingDrawer } from '../components/NewBookingDrawer';
 
 interface BookingEntry {
   id: string;
@@ -41,7 +30,6 @@ interface RoomItem {
   number: string;
   category: 'Single' | 'Double' | 'Suite' | 'Deluxe';
   status: 'Vacant' | 'Occupied' | 'Reserved' | 'OutOfOrder';
-  housekeepingStatus: RoomHousekeepingStatus;
   rate: number;
   bookings: BookingEntry[];
 }
@@ -87,13 +75,12 @@ export const CalendarView: React.FC = () => {
     { day: 15, count: 2, available: true },
   ];
 
-  // Room rows matching Image 1: 101 to 109 with exact guest names and housekeeping statuses
+  // Room rows matching Image 1: 101 to 109 with exact guest names
   const [singleRooms, setSingleRooms] = useState<RoomItem[]>([
     {
       number: '101',
       category: 'Single',
       status: 'Occupied',
-      housekeepingStatus: 'Clean',
       rate: 2500,
       bookings: [
         { id: 'b-101a', guest: 'Chris Glasser', fromDay: 11, toDay: 14, statusColor: '#E6F9E6', source: 'Direct' }
@@ -103,7 +90,6 @@ export const CalendarView: React.FC = () => {
       number: '102',
       category: 'Single',
       status: 'Occupied',
-      housekeepingStatus: 'Dirty',
       rate: 2500,
       bookings: [
         { id: 'b-102', guest: 'Frances Swann', fromDay: 9, toDay: 11, statusColor: '#E6F9E6', source: 'Booking.com' }
@@ -113,7 +99,6 @@ export const CalendarView: React.FC = () => {
       number: '103',
       category: 'Single',
       status: 'Occupied',
-      housekeepingStatus: 'Clean',
       rate: 2500,
       bookings: [
         { id: 'b-103', guest: 'James Hall', fromDay: 5, toDay: 6, statusColor: '#E0F2FE', source: 'Expedia' }
@@ -123,7 +108,6 @@ export const CalendarView: React.FC = () => {
       number: '104',
       category: 'Single',
       status: 'Occupied',
-      housekeepingStatus: 'Dirty',
       rate: 2500,
       bookings: [
         { id: 'b-104', guest: 'Ricky Smith', fromDay: 9, toDay: 11, statusColor: '#E0F2FE', source: 'Airbnb' }
@@ -133,7 +117,6 @@ export const CalendarView: React.FC = () => {
       number: '105',
       category: 'Single',
       status: 'Occupied',
-      housekeepingStatus: 'Clean',
       rate: 2500,
       bookings: [
         { id: 'b-105a', guest: 'John Dukes', fromDay: 2, toDay: 3, statusColor: '#E6F9E6', source: 'Direct' },
@@ -144,7 +127,6 @@ export const CalendarView: React.FC = () => {
       number: '106',
       category: 'Single',
       status: 'Occupied',
-      housekeepingStatus: 'Maintenance',
       rate: 2500,
       bookings: [
         { id: 'b-106a', guest: 'Alexander Buckmaster', fromDay: 5, toDay: 10, statusColor: '#E6F9E6', source: 'Corporate' },
@@ -155,7 +137,6 @@ export const CalendarView: React.FC = () => {
       number: '107',
       category: 'Single',
       status: 'Occupied',
-      housekeepingStatus: 'Clean',
       rate: 2500,
       bookings: [
         { id: 'b-107a', guest: 'Kenneth Allen', fromDay: 9, toDay: 10, statusColor: '#E0F2FE', source: 'Direct' },
@@ -166,7 +147,6 @@ export const CalendarView: React.FC = () => {
       number: '108',
       category: 'Single',
       status: 'Occupied',
-      housekeepingStatus: 'OutOfOrder',
       rate: 2500,
       bookings: [
         { id: 'b-108', guest: 'Corina McCoy', fromDay: 2, toDay: 3, statusColor: '#E0F2FE', source: 'Direct' }
@@ -176,7 +156,6 @@ export const CalendarView: React.FC = () => {
       number: '109',
       category: 'Single',
       status: 'Occupied',
-      housekeepingStatus: 'Maintenance',
       rate: 2500,
       bookings: [
         { id: 'b-109', guest: 'Paula Mora', fromDay: 12, toDay: 15, statusColor: '#E6F9E6', source: 'Direct' }
@@ -189,7 +168,6 @@ export const CalendarView: React.FC = () => {
       number: 'Suite1',
       category: 'Suite',
       status: 'Occupied',
-      housekeepingStatus: 'Clean',
       rate: 6500,
       bookings: [
         { id: 'b-s1', guest: 'Joshua Jones', fromDay: 4, toDay: 8, statusColor: '#E6F9E6', source: 'Direct' }
@@ -199,7 +177,6 @@ export const CalendarView: React.FC = () => {
       number: 'Suite2',
       category: 'Suite',
       status: 'Vacant',
-      housekeepingStatus: 'Clean',
       rate: 6500,
       bookings: [
         { id: 'b-s2', guest: 'Kimberly Mastrangelo', fromDay: 9, toDay: 13, statusColor: '#E0F2FE', source: 'Booking.com' }
@@ -209,7 +186,6 @@ export const CalendarView: React.FC = () => {
       number: 'Suite3',
       category: 'Suite',
       status: 'Occupied',
-      housekeepingStatus: 'Dirty',
       rate: 6500,
       bookings: [
         { id: 'b-s3', guest: 'Judith Rodriguez', fromDay: 3, toDay: 7, statusColor: '#E6F9E6', source: 'Direct' }
@@ -219,7 +195,6 @@ export const CalendarView: React.FC = () => {
       number: '201',
       category: 'Double',
       status: 'Occupied',
-      housekeepingStatus: 'Clean',
       rate: 4500,
       bookings: [
         { id: 'b-201', guest: 'David Miller', fromDay: 6, toDay: 10, statusColor: '#E0F2FE', source: 'Expedia' }
@@ -229,7 +204,6 @@ export const CalendarView: React.FC = () => {
       number: '202',
       category: 'Double',
       status: 'Occupied',
-      housekeepingStatus: 'Dirty',
       rate: 4500,
       bookings: [
         { id: 'b-202', guest: 'Elena Rostova', fromDay: 8, toDay: 12, statusColor: '#E6F9E6', source: 'Direct' }
@@ -239,7 +213,6 @@ export const CalendarView: React.FC = () => {
       number: '301',
       category: 'Suite',
       status: 'Occupied',
-      housekeepingStatus: 'Clean',
       rate: 12500,
       bookings: [
         { id: 'b-301', guest: 'Lord Alistair Sterling', fromDay: 4, toDay: 11, statusColor: '#E6F9E6', source: 'VIP Direct' }
@@ -247,59 +220,30 @@ export const CalendarView: React.FC = () => {
     }
   ]);
 
-  // Operational Room Status & Filter State
-  const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [viewMode, setViewMode] = useState<'matrix' | 'hourly'>('matrix');
-  const [isDrawerBookingOpen, setIsDrawerBookingOpen] = useState(false);
-
-  // Compute status counts dynamically
-  const allRoomsList = [...singleRooms, ...doubleRooms];
-  const statusCounts = {
-    total: allRoomsList.length,
-    clean: allRoomsList.filter(r => r.housekeepingStatus === 'Clean').length,
-    dirty: allRoomsList.filter(r => r.housekeepingStatus === 'Dirty').length,
-    maintenance: allRoomsList.filter(r => r.housekeepingStatus === 'Maintenance').length,
-    outOfOrder: allRoomsList.filter(r => r.housekeepingStatus === 'OutOfOrder').length,
-    occupied: allRoomsList.filter(r => r.status === 'Occupied').length,
-    vacant: allRoomsList.filter(r => r.status === 'Vacant').length
-  };
-
-  const handleUpdateRoomStatus = (roomNumber: string, newStatus: RoomHousekeepingStatus) => {
-    setSingleRooms(prev => prev.map(r => r.number === roomNumber ? { ...r, housekeepingStatus: newStatus } : r));
-    setDoubleRooms(prev => prev.map(r => r.number === roomNumber ? { ...r, housekeepingStatus: newStatus } : r));
-  };
-
-  const handleSaveFromDrawer = (drawerBooking: any) => {
-    const roomNum = drawerBooking.roomNumber.replace('Room ', '').trim();
-    const day = new Date(drawerBooking.date).getDate() || 5;
-    const newBooking: BookingEntry = {
-      id: `b-${Date.now()}`,
-      guest: drawerBooking.guestName,
-      fromDay: day,
-      toDay: Math.min(15, day + 2),
-      statusColor: '#DCFCE7',
-      source: 'Quick Booking',
-      isConfirmed: drawerBooking.status === 'Confirmed'
+  // Synchronize Calendar with global room status changes
+  useEffect(() => {
+    const handleRoomStatus = (e: any) => {
+      const { roomNumber, status } = e.detail || {};
+      if (!roomNumber) return;
+      const updateRoomList = (list: RoomItem[]) => list.map(r => {
+        if (r.number === roomNumber) {
+          const newStatus: RoomItem['status'] = 
+            (status === 'Under Maintenance' || status === 'OutOfOrder' || status === 'Repair') ? 'OutOfOrder' :
+            status === 'Clean' || status === 'Available' ? 'Vacant' : r.status;
+          return { ...r, status: newStatus };
+        }
+        return r;
+      });
+      setSingleRooms(updateRoomList);
+      setDoubleRooms(updateRoomList);
     };
-
-    setSingleRooms(prev => prev.map(r => r.number === roomNum ? { ...r, bookings: [...r.bookings, newBooking], status: 'Occupied' } : r));
-    setDoubleRooms(prev => prev.map(r => r.number === roomNum ? { ...r, bookings: [...r.bookings, newBooking], status: 'Occupied' } : r));
-  };
-
-  // Filter rooms when status filter is applied
-  const filteredSingleRooms = singleRooms.filter(r => {
-    if (statusFilter === 'All') return true;
-    if (statusFilter === 'Occupied') return r.status === 'Occupied';
-    if (statusFilter === 'Vacant') return r.status === 'Vacant';
-    return r.housekeepingStatus === statusFilter;
-  });
-
-  const filteredDoubleRooms = doubleRooms.filter(r => {
-    if (statusFilter === 'All') return true;
-    if (statusFilter === 'Occupied') return r.status === 'Occupied';
-    if (statusFilter === 'Vacant') return r.status === 'Vacant';
-    return r.housekeepingStatus === statusFilter;
-  });
+    window.addEventListener('hms:room-status-changed', handleRoomStatus);
+    window.addEventListener('hms:rooms-updated', handleRoomStatus);
+    return () => {
+      window.removeEventListener('hms:room-status-changed', handleRoomStatus);
+      window.removeEventListener('hms:rooms-updated', handleRoomStatus);
+    };
+  }, []);
 
   // Modal State for Front Desk Booking Engine
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -327,6 +271,17 @@ export const CalendarView: React.FC = () => {
 
   const [isUploading, setIsUploading] = useState(false);
   const [bookingSuccessMsg, setBookingSuccessMsg] = useState('');
+
+  // Close modal smoothly on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isBookingModalOpen) {
+        setIsBookingModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isBookingModalOpen]);
 
   // Calculate nights and taxes
   const calculateNights = () => {
@@ -486,15 +441,15 @@ export const CalendarView: React.FC = () => {
   };
 
   return (
-    <div className="animate-fade-in" style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="animate-fade-in responsive-view-container">
       
       {/* ---------------------------------------------------- */}
       {/* 1. TOP HEADER - FRONT DESK TITLE & BUTTONS */}
       {/* ---------------------------------------------------- */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="responsive-action-header">
         <div>
           <h1 style={{
-            fontSize: '24px',
+            fontSize: 'clamp(20px, 2.5vw, 24px)',
             fontWeight: '800',
             color: '#0F172A',
             letterSpacing: '-0.3px',
@@ -505,82 +460,7 @@ export const CalendarView: React.FC = () => {
         </div>
 
         {/* Right Top Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          
-          {/* View Mode Toggle: Tape Chart vs Daily Hourly Timeline */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            backgroundColor: '#F1F5F9',
-            padding: '3px',
-            borderRadius: '9px',
-            border: '1px solid #E2E8F0'
-          }}>
-            <button
-              onClick={() => setViewMode('matrix')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '5px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: viewMode === 'matrix' ? '800' : '600',
-                backgroundColor: viewMode === 'matrix' ? '#FFFFFF' : 'transparent',
-                color: viewMode === 'matrix' ? '#0F172A' : '#64748B',
-                border: 'none',
-                cursor: 'pointer',
-                boxShadow: viewMode === 'matrix' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
-              }}
-            >
-              <CalendarIcon size={14} />
-              <span>14-Day Tape Chart</span>
-            </button>
-            <button
-              onClick={() => setViewMode('hourly')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '5px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: viewMode === 'hourly' ? '800' : '600',
-                backgroundColor: viewMode === 'hourly' ? '#FFFFFF' : 'transparent',
-                color: viewMode === 'hourly' ? '#0F172A' : '#64748B',
-                border: 'none',
-                cursor: 'pointer',
-                boxShadow: viewMode === 'hourly' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
-              }}
-            >
-              <Clock size={14} />
-              <span>Hourly Timeline</span>
-            </button>
-          </div>
-
-          {/* Quick Booking Drawer Trigger (Inspired by Image 1) */}
-          <button
-            onClick={() => setIsDrawerBookingOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              backgroundColor: '#0F172A',
-              border: 'none',
-              color: '#FFFFFF',
-              borderRadius: '8px',
-              padding: '8px 14px',
-              fontSize: '13px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(15, 23, 42, 0.15)',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Plus size={15} />
-            <span>+ Quick Booking</span>
-          </button>
-
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {/* Add Deal Booking button */}
           <button
             onClick={() => { setBookingType('Deal'); setIsBookingModalOpen(true); }}
@@ -592,7 +472,7 @@ export const CalendarView: React.FC = () => {
               border: '1.5px solid #0E94A8',
               color: '#0E94A8',
               borderRadius: '8px',
-              padding: '8px 14px',
+              padding: '8px 16px',
               fontSize: '13px',
               fontWeight: '700',
               cursor: 'pointer',
@@ -600,7 +480,7 @@ export const CalendarView: React.FC = () => {
             }}
           >
             <Plus size={16} />
-            <span>Deal Booking</span>
+            <span>Add Deal Booking</span>
           </button>
 
           {/* Add Room Booking button */}
@@ -614,7 +494,7 @@ export const CalendarView: React.FC = () => {
               border: '1.5px solid #0E94A8',
               color: '#FFFFFF',
               borderRadius: '8px',
-              padding: '8px 14px',
+              padding: '8px 16px',
               fontSize: '13px',
               fontWeight: '700',
               cursor: 'pointer',
@@ -623,102 +503,82 @@ export const CalendarView: React.FC = () => {
             }}
           >
             <Plus size={16} />
-            <span>Room Booking</span>
+            <span>Add Room Booking</span>
           </button>
         </div>
       </div>
 
       {/* ---------------------------------------------------- */}
-      {/* 2. STATS & DATE RANGE ROW */}
+      {/* 2. STATS & DATE RANGE ROW (MATCHING IMAGE 1) */}
       {/* ---------------------------------------------------- */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         {/* 4 Stat Cards */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {/* VACANT */}
-          <div 
-            onClick={() => setStatusFilter(statusFilter === 'Vacant' ? 'All' : 'Vacant')}
-            style={{
-              backgroundColor: '#EBF3FB',
-              borderRadius: '12px',
-              padding: '10px 18px',
-              minWidth: '115px',
-              border: statusFilter === 'Vacant' ? '2px solid #3B82F6' : '1px solid #D6E8F9',
-              cursor: 'pointer'
-            }}
-            title="Filter by Vacant"
-          >
+          {/* VACANT 6 */}
+          <div style={{
+            backgroundColor: '#EBF3FB',
+            borderRadius: '12px',
+            padding: '10px 18px',
+            minWidth: '115px',
+            border: '1px solid #D6E8F9'
+          }}>
             <div style={{ fontSize: '10px', fontWeight: '800', color: '#4B7FB5', letterSpacing: '0.5px' }}>
               VACANT
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
               <BedDouble size={18} color="#3B82F6" />
-              <span style={{ fontSize: '20px', fontWeight: '800', color: '#1E40AF' }}>{statusCounts.vacant}</span>
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#1E40AF' }}>6</span>
             </div>
           </div>
 
-          {/* OCCUPIED */}
-          <div 
-            onClick={() => setStatusFilter(statusFilter === 'Occupied' ? 'All' : 'Occupied')}
-            style={{
-              backgroundColor: '#E6F7F9',
-              borderRadius: '12px',
-              padding: '10px 18px',
-              minWidth: '115px',
-              border: statusFilter === 'Occupied' ? '2px solid #0E94A8' : '1px solid #C4EEF3',
-              cursor: 'pointer'
-            }}
-            title="Filter by Occupied"
-          >
+          {/* OCCUPIED 26 */}
+          <div style={{
+            backgroundColor: '#E6F7F9',
+            borderRadius: '12px',
+            padding: '10px 18px',
+            minWidth: '115px',
+            border: '1px solid #C4EEF3'
+          }}>
             <div style={{ fontSize: '10px', fontWeight: '800', color: '#0E94A8', letterSpacing: '0.5px' }}>
               OCCUPIED
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
               <BedDouble size={18} color="#0891B2" />
-              <span style={{ fontSize: '20px', fontWeight: '800', color: '#0E7490' }}>{statusCounts.occupied}</span>
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#0E7490' }}>26</span>
             </div>
           </div>
 
-          {/* CLEAN */}
-          <div 
-            onClick={() => setStatusFilter(statusFilter === 'Clean' ? 'All' : 'Clean')}
-            style={{
-              backgroundColor: '#EDFAF1',
-              borderRadius: '12px',
-              padding: '10px 18px',
-              minWidth: '115px',
-              border: statusFilter === 'Clean' ? '2px solid #16A34A' : '1px solid #C9F2D5',
-              cursor: 'pointer'
-            }}
-            title="Filter by Clean"
-          >
+          {/* RESERVED 8 */}
+          <div style={{
+            backgroundColor: '#EDFAF1',
+            borderRadius: '12px',
+            padding: '10px 18px',
+            minWidth: '115px',
+            border: '1px solid #C9F2D5'
+          }}>
             <div style={{ fontSize: '10px', fontWeight: '800', color: '#15803D', letterSpacing: '0.5px' }}>
-              CLEAN (READY)
+              RESERVED
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
               <Check size={18} color="#16A34A" strokeWidth={3} />
-              <span style={{ fontSize: '20px', fontWeight: '800', color: '#166534' }}>{statusCounts.clean}</span>
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#166534' }}>8</span>
             </div>
           </div>
 
-          {/* OUT OF ORDER */}
-          <div 
-            onClick={() => setStatusFilter(statusFilter === 'OutOfOrder' ? 'All' : 'OutOfOrder')}
-            style={{
-              backgroundColor: '#FDF0F0',
-              borderRadius: '12px',
-              padding: '10px 18px',
-              minWidth: '115px',
-              border: statusFilter === 'OutOfOrder' ? '2px solid #DC2626' : '1px solid #FCD4D4',
-              cursor: 'pointer'
-            }}
-            title="Filter by Out of Order"
-          >
+          {/* OUT OF ORDER 0 */}
+          <div style={{
+            backgroundColor: '#FDF0F0',
+            borderRadius: '12px',
+            padding: '10px 18px',
+            minWidth: '115px',
+            border: '1px solid #FCD4D4'
+          }}>
             <div style={{ fontSize: '10px', fontWeight: '800', color: '#B91C1C', letterSpacing: '0.5px' }}>
               OUT OF ORDER
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
               <X size={18} color="#DC2626" strokeWidth={3} />
-              <span style={{ fontSize: '20px', fontWeight: '800', color: '#991B1B' }}>{statusCounts.outOfOrder}</span>
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#991B1B' }}>0</span>
             </div>
           </div>
         </div>
@@ -745,38 +605,24 @@ export const CalendarView: React.FC = () => {
       </div>
 
       {/* ---------------------------------------------------- */}
-      {/* 2.5 COLOR-CODED ROOM STATUS LEGEND & FILTER BAR */}
+      {/* 3. CALENDAR MATRIX GRID (MATCHING IMAGE 1) */}
       {/* ---------------------------------------------------- */}
-      <RoomStatusLegend
-        statusCounts={statusCounts}
-        activeFilter={statusFilter}
-        onSelectFilter={(f) => setStatusFilter(f)}
-      />
-
-      {/* ---------------------------------------------------- */}
-      {/* 3. CALENDAR MATRIX GRID (MATCHING IMAGE 1) OR HOURLY TIMELINE (MATCHING IMAGE 2) */}
-      {/* ---------------------------------------------------- */}
-      {viewMode === 'hourly' ? (
-        <HourlyTimelineView 
-          onOpenNewBooking={() => setIsDrawerBookingOpen(true)} 
-        />
-      ) : (
-        <div className="lodgify-card" style={{ padding: 0, overflowX: 'auto', borderRadius: '14px', border: '1px solid #E2E8F0', position: 'relative' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1100px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                {/* Rooms Column Header */}
-                <th style={{
-                  width: '210px',
-                  padding: '14px 16px',
-                  textAlign: 'left',
-                  fontSize: '13px',
-                  fontWeight: '800',
-                  color: '#0F172A',
-                  borderRight: '1px solid #E2E8F0'
-                }}>
-                  Rooms & Status
-                </th>
+      <div className="lodgify-card" style={{ padding: 0, overflowX: 'auto', borderRadius: '14px', border: '1px solid #E2E8F0', position: 'relative' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1100px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+              {/* Rooms Column Header */}
+              <th style={{
+                width: '180px',
+                padding: '14px 20px',
+                textAlign: 'left',
+                fontSize: '14px',
+                fontWeight: '800',
+                color: '#0F172A',
+                borderRight: '1px solid #E2E8F0'
+              }}>
+                Rooms
+              </th>
 
               {/* 14 Day Columns */}
               {days.map(d => {
@@ -817,7 +663,7 @@ export const CalendarView: React.FC = () => {
               <td
                 onClick={() => setSingleRoomsOpen(!singleRoomsOpen)}
                 style={{
-                  padding: '10px 16px',
+                  padding: '10px 20px',
                   fontWeight: '800',
                   fontSize: '13px',
                   color: '#0F172A',
@@ -828,10 +674,7 @@ export const CalendarView: React.FC = () => {
                   justifyContent: 'space-between'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>Single rooms</span>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B' }}>({filteredSingleRooms.length})</span>
-                </div>
+                <span>Single rooms</span>
                 {singleRoomsOpen ? <ChevronUp size={16} color="#64748B" /> : <ChevronDown size={16} color="#64748B" />}
               </td>
 
@@ -865,31 +708,24 @@ export const CalendarView: React.FC = () => {
             </tr>
 
             {/* Single Rooms Rows */}
-            {singleRoomsOpen && filteredSingleRooms.map(rm => (
+            {singleRoomsOpen && singleRooms.map(rm => (
               <tr key={rm.number} style={{ borderBottom: '1px solid #F1F5F9', height: '48px' }}>
-                {/* Room Number with RoomStatusBadge */}
+                {/* Room Number with Cyan/Grey Dot */}
                 <td style={{
-                  padding: '8px 16px',
+                  padding: '10px 20px',
                   borderRight: '1px solid #E2E8F0',
                   backgroundColor: '#FFFFFF'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '2px',
-                        backgroundColor: ROOM_STATUS_MAP[rm.housekeepingStatus]?.dotColor || '#0E94A8'
-                      }} />
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#1E293B' }}>
-                        {rm.number}
-                      </span>
-                    </div>
-                    <RoomStatusBadge
-                      roomNumber={rm.number}
-                      status={rm.housekeepingStatus}
-                      onUpdateStatus={handleUpdateRoomStatus}
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '2px',
+                      backgroundColor: rm.number === '101' || rm.number === '102' || rm.number === '105' || rm.number === '109' ? '#94A3B8' : '#0E94A8'
+                    }} />
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#1E293B' }}>
+                      {rm.number}
+                    </span>
                   </div>
                 </td>
 
@@ -953,7 +789,7 @@ export const CalendarView: React.FC = () => {
               <td
                 onClick={() => setDoubleRoomsOpen(!doubleRoomsOpen)}
                 style={{
-                  padding: '10px 16px',
+                  padding: '10px 20px',
                   fontWeight: '800',
                   fontSize: '13px',
                   color: '#0F172A',
@@ -964,10 +800,7 @@ export const CalendarView: React.FC = () => {
                   justifyContent: 'space-between'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>Double room & Suites</span>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B' }}>({filteredDoubleRooms.length})</span>
-                </div>
+                <span>Double room</span>
                 {doubleRoomsOpen ? <ChevronUp size={16} color="#64748B" /> : <ChevronDown size={16} color="#64748B" />}
               </td>
 
@@ -993,30 +826,23 @@ export const CalendarView: React.FC = () => {
             </tr>
 
             {/* Double Rooms & Suites Rows */}
-            {doubleRoomsOpen && filteredDoubleRooms.map(rm => (
+            {doubleRoomsOpen && doubleRooms.map(rm => (
               <tr key={rm.number} style={{ borderBottom: '1px solid #F1F5F9', height: '48px' }}>
                 <td style={{
-                  padding: '8px 16px',
+                  padding: '10px 20px',
                   borderRight: '1px solid #E2E8F0',
                   backgroundColor: '#FFFFFF'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '2px',
-                        backgroundColor: ROOM_STATUS_MAP[rm.housekeepingStatus]?.dotColor || '#0E94A8'
-                      }} />
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#1E293B' }}>
-                        {rm.number}
-                      </span>
-                    </div>
-                    <RoomStatusBadge
-                      roomNumber={rm.number}
-                      status={rm.housekeepingStatus}
-                      onUpdateStatus={handleUpdateRoomStatus}
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '2px',
+                      backgroundColor: '#0E94A8'
+                    }} />
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#1E293B' }}>
+                      {rm.number}
+                    </span>
                   </div>
                 </td>
 
@@ -1070,69 +896,57 @@ export const CalendarView: React.FC = () => {
                 })}
               </tr>
             ))}
-
-            {/* Zero rooms matching filter fallback */}
-            {filteredSingleRooms.length === 0 && filteredDoubleRooms.length === 0 && (
-              <tr>
-                <td colSpan={15} style={{ textAlign: 'center', padding: '40px 20px', color: '#64748B' }}>
-                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
-                    No rooms currently match status filter: "{statusFilter}"
-                  </div>
-                  <p style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
-                    Click on "All Rooms" on the status legend to display all rooms.
-                  </p>
-                  <button
-                    onClick={() => setStatusFilter('All')}
-                    style={{
-                      marginTop: '10px',
-                      padding: '6px 14px',
-                      backgroundColor: '#0F172A',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: '700',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Reset Filter
-                  </button>
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
-      )}
 
       {/* ---------------------------------------------------- */}
       {/* 4. FRONT DESK ONLINE BOOKING & SCANNED ID KYC MODAL */}
       {/* ---------------------------------------------------- */}
-      {isBookingModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.65)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: '20px',
-          backdropFilter: 'blur(4px)'
-        }}>
-          <div className="lodgify-card animate-scale-up" style={{
-            width: '100%',
-            maxWidth: '780px',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            padding: '32px',
-            borderRadius: '24px',
-            backgroundColor: '#FFFFFF',
-            position: 'relative'
-          }}>
+      <AnimatePresence>
+        {isBookingModalOpen && (
+          <motion.div
+            key="front-desk-booking-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setIsBookingModalOpen(false);
+            }}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              padding: '20px',
+              backdropFilter: 'blur(4px)'
+            }}
+          >
+            <motion.div
+              key="front-desk-booking-modal-container"
+              initial={{ opacity: 0, scale: 0.93, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              className="lodgify-card"
+              style={{
+                width: '100%',
+                maxWidth: '780px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                padding: '32px',
+                borderRadius: '24px',
+                backgroundColor: 'var(--bg-card)',
+                position: 'relative'
+              }}
+            >
             {/* Modal Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div>
@@ -1596,18 +1410,10 @@ export const CalendarView: React.FC = () => {
               </div>
 
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
-
-      {/* ---------------------------------------------------- */}
-      {/* 5. QUICK BOOKING DRAWER (IMAGE 1 & 2 INSPIRATION) */}
-      {/* ---------------------------------------------------- */}
-      <NewBookingDrawer
-        isOpen={isDrawerBookingOpen}
-        onClose={() => setIsDrawerBookingOpen(false)}
-        onSaveBooking={handleSaveFromDrawer}
-      />
+    </AnimatePresence>
 
     </div>
   );

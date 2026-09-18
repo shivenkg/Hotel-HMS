@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Calendar as CalendarIcon, 
@@ -8,7 +8,9 @@ import {
   BedDouble, 
   CheckCircle2,
   Tag,
-  ShieldCheck
+  ShieldCheck,
+  RotateCcw,
+  Save
 } from 'lucide-react';
 
 interface NewBookingDrawerProps {
@@ -26,22 +28,78 @@ interface NewBookingDrawerProps {
   }) => void;
 }
 
+const DRAFT_STORAGE_KEY = 'hms_new_booking_draft_v1';
+
 export const NewBookingDrawer: React.FC<NewBookingDrawerProps> = ({
   isOpen,
   onClose,
   onSaveBooking
 }) => {
-  const [name, setName] = useState('');
-  const [date, setDate] = useState('2025-12-05');
-  const [room, setRoom] = useState('Room 101');
-  const [timeSlot, setTimeSlot] = useState('Morning Slot (08:00 - 13:00)');
-  const [startTime, setStartTime] = useState('08:00');
-  const [endTime, setEndTime] = useState('13:00');
-  const [phone, setPhone] = useState('0812 3290 0992');
-  const [status, setStatus] = useState<'Confirmed' | 'Pending' | 'Checked-in'>('Confirmed');
+  // Load initial values from localStorage draft if available
+  const [initialDraft] = useState(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  });
+
+  const [name, setName] = useState(initialDraft?.name || '');
+  const [date, setDate] = useState(initialDraft?.date || '2025-12-05');
+  const [room, setRoom] = useState(initialDraft?.room || 'Room 101');
+  const [timeSlot, setTimeSlot] = useState(initialDraft?.timeSlot || 'Morning Slot (08:00 - 13:00)');
+  const [startTime, setStartTime] = useState(initialDraft?.startTime || '08:00');
+  const [endTime, setEndTime] = useState(initialDraft?.endTime || '13:00');
+  const [phone, setPhone] = useState(initialDraft?.phone || '0812 3290 0992');
+  const [status, setStatus] = useState<'Confirmed' | 'Pending' | 'Checked-in'>(initialDraft?.status || 'Confirmed');
+  
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(Boolean(initialDraft?.name || initialDraft?.phone));
+  const [lastAutoSavedTime, setLastAutoSavedTime] = useState<string | null>(initialDraft?.savedAt || null);
+
+  // Auto-save form values to localStorage on every change
+  useEffect(() => {
+    // Only auto-save if form has user-entered content
+    if (name.trim() || (phone && phone !== '0812 3290 0992')) {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const draftData = {
+        name,
+        date,
+        room,
+        timeSlot,
+        startTime,
+        endTime,
+        phone,
+        status,
+        savedAt: timeString
+      };
+      try {
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+        setLastAutoSavedTime(timeString);
+      } catch (err) {
+        console.warn('Could not auto-save booking draft:', err);
+      }
+    }
+  }, [name, date, room, timeSlot, startTime, endTime, phone, status]);
 
   if (!isOpen) return null;
+
+  const handleDiscardDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {}
+    setName('');
+    setDate('2025-12-05');
+    setRoom('Room 101');
+    setTimeSlot('Morning Slot (08:00 - 13:00)');
+    setStartTime('08:00');
+    setEndTime('13:00');
+    setPhone('0812 3290 0992');
+    setStatus('Confirmed');
+    setHasRestoredDraft(false);
+    setLastAutoSavedTime(null);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +115,11 @@ export const NewBookingDrawer: React.FC<NewBookingDrawerProps> = ({
       phone,
       status
     });
+
+    // Clear draft upon successful save
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {}
 
     setShowSuccessToast(true);
     setTimeout(() => {
@@ -144,6 +207,45 @@ export const NewBookingDrawer: React.FC<NewBookingDrawerProps> = ({
             <X size={20} />
           </button>
         </div>
+
+        {/* Restored Draft Banner */}
+        {hasRestoredDraft && (
+          <div style={{
+            margin: '12px 28px 0 28px',
+            backgroundColor: '#EFF6FF',
+            border: '1px solid #BFDBFE',
+            borderRadius: '10px',
+            padding: '8px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '11px',
+            color: '#1E40AF'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Save size={13} color="#2563EB" />
+              <span>Restored unsaved draft from local storage.</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#DC2626',
+                fontWeight: '700',
+                fontSize: '11px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <RotateCcw size={11} />
+              Discard Draft
+            </button>
+          </div>
+        )}
 
         {/* Success Alert */}
         {showSuccessToast && (
@@ -390,41 +492,65 @@ export const NewBookingDrawer: React.FC<NewBookingDrawerProps> = ({
             borderTop: '1px solid #E2E8F0',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
             gap: '12px'
           }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '9px 18px',
-                backgroundColor: '#FFFFFF',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '700',
-                color: '#475569',
-                cursor: 'pointer'
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              style={{
-                padding: '9px 24px',
-                backgroundColor: '#0F172A',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '700',
-                color: '#FFFFFF',
-                cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(15, 23, 42, 0.15)'
-              }}
-            >
-              Save
-            </button>
+            {/* Auto-save status feedback */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '11px',
+              color: lastAutoSavedTime ? '#059669' : '#64748B',
+              fontWeight: '600'
+            }}>
+              {lastAutoSavedTime ? (
+                <>
+                  <CheckCircle2 size={13} color="#059669" />
+                  <span>Draft saved ({lastAutoSavedTime})</span>
+                </>
+              ) : (
+                <>
+                  <Save size={13} color="#94A3B8" />
+                  <span>Auto-save enabled</span>
+                </>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '9px 18px',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#475569',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                style={{
+                  padding: '9px 24px',
+                  backgroundColor: '#0F172A',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(15, 23, 42, 0.15)'
+                }}
+              >
+                Save
+              </button>
+            </div>
           </div>
         </form>
       </div>

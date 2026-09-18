@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, ChefHat, ShoppingBag, Clock, ChevronRight, X, UtensilsCrossed, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, ChefHat, ShoppingBag } from 'lucide-react';
 
 export const ConciergeView: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -7,10 +7,9 @@ export const ConciergeView: React.FC = () => {
   const [roomOrTable, setRoomOrTable] = useState('Room 101');
   const [cart, setCart] = useState<Array<{ id: string; name: string; price: number; qty: number }>>([]);
   const [billToRoom, setBillToRoom] = useState(true);
-  const [showRoomDrilldown, setShowRoomDrilldown] = useState(false);
 
-  // Menu items
-  const menuItems = [
+  // Dynamic menu items loaded from Master Data
+  const [menuItems, setMenuItems] = useState([
     { id: 'm1', name: 'Truffle Mushroom Risotto', category: 'Main Course', price: 850, prepTime: '20 min' },
     { id: 'm2', name: 'Wood-fired Margherita Pizza', category: 'Main Course', price: 650, prepTime: '15 min' },
     { id: 'm3', name: 'Grilled Norwegian Salmon', category: 'Main Course', price: 1200, prepTime: '25 min' },
@@ -20,7 +19,20 @@ export const ConciergeView: React.FC = () => {
     { id: 'm7', name: 'Craft Berry Mocktail', category: 'Beverage', price: 280, prepTime: '5 min' },
     { id: 'm8', name: 'Tiramisu Della Nonna', category: 'Dessert', price: 420, prepTime: '5 min' },
     { id: 'm9', name: 'Artisan Gelato Trio', category: 'Dessert', price: 350, prepTime: '5 min' },
-  ];
+  ]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/pos/menu')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (mounted && Array.isArray(data) && data.length > 0) {
+          setMenuItems(data);
+        }
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
 
   // KDS Orders state
   const [kdsOrders, setKdsOrders] = useState([
@@ -96,11 +108,11 @@ export const ConciergeView: React.FC = () => {
     : menuItems.filter(m => m.category === selectedCategory);
 
   return (
-    <div className="animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+    <div className="animate-fade-in responsive-view-container">
       
       {/* Top Header */}
       <div>
-        <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
+        <h2 style={{ fontSize: 'clamp(18px, 2vw, 20px)', fontWeight: '800', color: '#0F172A', margin: 0 }}>
           Restaurant POS & Kitchen Display System (KDS)
         </h2>
         <p style={{ fontSize: '13px', color: '#64748B', marginTop: '4px' }}>
@@ -108,89 +120,14 @@ export const ConciergeView: React.FC = () => {
         </p>
       </div>
 
-      {/* Kitchen Executive Key KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-        {/* Card 1: Open Orders (Click to drill down) */}
-        <div 
-          onClick={() => setShowRoomDrilldown(true)}
-          style={{
-            cursor: 'pointer',
-            backgroundColor: '#FFF1F2',
-            border: '2px solid #FECDD3',
-            borderRadius: '14px',
-            padding: '18px',
-            transition: 'all 0.2s ease'
-          }}
-          className="hover:shadow-md"
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#991B1B', textTransform: 'uppercase' }}>
-              Open Kitchen Orders
-            </span>
-            <span style={{ fontSize: '10px', fontWeight: '800', backgroundColor: '#E11D48', color: '#FFFFFF', padding: '2px 6px', borderRadius: '9999px' }}>
-              Live KDS
-            </span>
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-            {kdsOrders.filter(o => o.status !== 'Delivered').length} Orders Active
-          </div>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: '#991B1B', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span>👉 Click for Room-wise Item Order drill-down</span>
-            <ChevronRight size={14} />
-          </div>
-        </div>
-
-        {/* Card 2: Items in Prep */}
-        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B' }}>Items Cooking</span>
-            <UtensilsCrossed size={16} color="#0F172A" />
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-            5 Items
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748B' }}>
-            1 Risotto, 2 Pizzas, 2 Mocktails
-          </div>
-        </div>
-
-        {/* Card 3: Avg Prep Time */}
-        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B' }}>Avg Prep & Delivery</span>
-            <Clock size={16} color="#059669" />
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-            14.2 min
-          </div>
-          <div style={{ fontSize: '11px', color: '#059669', fontWeight: '600' }}>
-            Under 20m target benchmark
-          </div>
-        </div>
-
-        {/* Card 4: F&B Revenue Today */}
-        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B' }}>F&B Sales Today</span>
-            <ChefHat size={16} color="#0F172A" />
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-            ₹18,450
-          </div>
-          <div style={{ fontSize: '11px', color: '#059669', fontWeight: '600' }}>
-            +12.4% vs yesterday
-          </div>
-        </div>
-      </div>
-
       {/* Main Grid: POS Menu (Left) + Cart & KDS (Right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '24px' }}>
+      <div className="responsive-split-grid">
         
         {/* LEFT: MENU ITEMS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           
           {/* Category Tabs */}
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="responsive-subtabs" style={{ display: 'flex', gap: '8px' }}>
             {['All', 'Main Course', 'Appetizer', 'Beverage', 'Dessert'].map((cat) => (
               <button
                 key={cat}
@@ -409,156 +346,6 @@ export const ConciergeView: React.FC = () => {
 
         </div>
       </div>
-
-      {/* ROOM-WISE ITEM ORDER DRILL-DOWN MODAL */}
-      {showRoomDrilldown && (
-        <div className="modal-overlay">
-          <div className="modal-container" style={{ maxWidth: '750px', padding: '28px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <UtensilsCrossed size={20} color="#991B1B" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                    Kitchen KDS: Room Number-Wise Item Order Drill-Down
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>
-                    Active kitchen tickets segregated by room number with itemized portions and prep timers.
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowRoomDrilldown(false)} 
-                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {[
-                {
-                  room: 'Room 101',
-                  guest: 'Sophia Laurent (VIP)',
-                  orderNumber: 'POS-2026-041',
-                  status: 'Ready for Service',
-                  elapsed: '12m ago',
-                  items: [
-                    { name: 'Truffle Mushroom Risotto', qty: 1, price: '₹850', note: 'Extra parmesan on side' },
-                    { name: 'San Pellegrino 750ml', qty: 1, price: '₹320', note: 'Chilled glass with lemon' },
-                    { name: 'Tiramisu Della Nonna', qty: 1, price: '₹420', note: 'Standard portion' }
-                  ],
-                  total: '₹1,669.50'
-                },
-                {
-                  room: 'Room 104',
-                  guest: 'Jonathan Vance',
-                  orderNumber: 'POS-2026-042',
-                  status: 'Preparing (Pizza Oven)',
-                  elapsed: '6m ago',
-                  items: [
-                    { name: 'Wood-fired Margherita Pizza', qty: 2, price: '₹1,300', note: 'Well-done crust, basil garnish' },
-                    { name: 'Craft Berry Mocktail', qty: 2, price: '₹560', note: 'Less ice' }
-                  ],
-                  total: '₹1,953.00'
-                },
-                {
-                  room: 'Room 106',
-                  guest: 'Lord Alistair Sterling',
-                  orderNumber: 'POS-2026-043',
-                  status: 'Preparing (Grill Station)',
-                  elapsed: '18m ago',
-                  items: [
-                    { name: 'Grilled Norwegian Salmon', qty: 1, price: '₹1,200', note: 'Medium with grilled asparagus' },
-                    { name: 'Burrata Caprese Salad', qty: 1, price: '₹520', note: 'Aged Modena balsamic' }
-                  ],
-                  total: '₹1,806.00'
-                },
-                {
-                  room: 'Table 4 (Restaurant)',
-                  guest: 'Walk-in Dining Guests',
-                  orderNumber: 'POS-2026-044',
-                  status: 'Order Received',
-                  elapsed: '4m ago',
-                  items: [
-                    { name: 'Crispy Calamari Fritti', qty: 1, price: '₹480', note: 'Spicy tartar dip' },
-                    { name: 'San Pellegrino 750ml', qty: 2, price: '₹640', note: 'Room temperature' }
-                  ],
-                  total: '₹1,176.00'
-                }
-              ].map((group, idx) => (
-                <div key={idx} style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '10px', marginBottom: '10px' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
-                          🏨 {group.room}
-                        </span>
-                        <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#E2E8F0', color: '#334155', padding: '2px 6px', borderRadius: '4px' }}>
-                          {group.orderNumber}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
-                        Guest: <strong>{group.guest}</strong> • {group.elapsed}
-                      </div>
-                    </div>
-                    <span style={{
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      padding: '4px 10px',
-                      borderRadius: '9999px',
-                      backgroundColor: group.status.includes('Ready') ? '#D1FAE5' : group.status.includes('Preparing') ? '#FEF3C7' : '#E0F2FE',
-                      color: group.status.includes('Ready') ? '#065F46' : group.status.includes('Preparing') ? '#92400E' : '#0369A1'
-                    }}>
-                      ● {group.status}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {group.items.map((item, iIdx) => (
-                      <div key={iIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: '8px 12px', borderRadius: '8px', border: '1px solid #E8EEF5' }}>
-                        <div>
-                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
-                            {item.qty}x {item.name}
-                          </div>
-                          <div style={{ fontSize: '11px', color: '#D97706', fontStyle: 'italic' }}>
-                            {item.note}
-                          </div>
-                        </div>
-                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
-                          {item.price}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#059669' }}>
-                      Billed to Room Folio: {group.total}
-                    </span>
-                    <button 
-                      onClick={() => alert(`Status updated for ${group.room}!`)}
-                      style={{
-                        padding: '5px 12px',
-                        backgroundColor: '#0F172A',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Advance Prep Stage →
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

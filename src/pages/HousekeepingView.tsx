@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   BedDouble, 
   Check, 
@@ -9,17 +9,20 @@ import {
   Smartphone, 
   ClipboardList, 
   CheckCircle2,
+  RefreshCw,
+  ArrowLeftRight,
+  AlertCircle,
+  Clock,
   Sparkles,
-  ChevronRight,
-  AlertTriangle
+  ShieldCheck
 } from 'lucide-react';
 
-interface HousekeepingRow {
+export interface HousekeepingRow {
   id: string;
   room: string;
   roomType: 'Deluxe' | 'Suite' | 'Standard';
-  status: 'In Process' | 'Clean' | 'Dirty' | 'Repair';
-  availability: 'Available' | 'Cancel' | 'Occupied';
+  status: 'Clean' | 'Dirty' | 'Inspected' | 'Under Maintenance' | 'In Process' | 'Repair';
+  availability: 'Available' | 'Cancel' | 'Occupied' | 'Out of Order';
   name: string;
   remarks: string;
 }
@@ -39,11 +42,13 @@ interface MaintenanceOrder {
 
 export const HousekeepingView: React.FC = () => {
   const [selectedTab, setSelectedTab] = useState<'table' | 'maintenance' | 'mobile'>('table');
-  const [viewFilter, setViewFilter] = useState<'All rooms' | 'In Process' | 'Clean' | 'Dirty' | 'Repair'>('All rooms');
+  const [viewFilter, setViewFilter] = useState<'All rooms' | 'Dirty' | 'Clean' | 'Inspected' | 'In Process' | 'Under Maintenance' | 'Repair'>('All rooms');
   const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
-  const [showTurnoverDrilldown, setShowTurnoverDrilldown] = useState(false);
+  const [isLiveSyncing, setIsLiveSyncing] = useState<boolean>(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [statusUpdatingRoom, setStatusUpdatingRoom] = useState<string | null>(null);
 
-  // Rows matching Image 2 ("Housekeeping")
+  // Initial Rooms state matching image & backend
   const [rows, setRows] = useState<HousekeepingRow[]>([
     { id: 'hk-1', room: '101', roomType: 'Deluxe', status: 'In Process', availability: 'Available', name: 'Daniel Hamilton', remarks: '...' },
     { id: 'hk-2', room: '102', roomType: 'Deluxe', status: 'In Process', availability: 'Cancel', name: 'Corina McCoy', remarks: '...' },
@@ -51,13 +56,13 @@ export const HousekeepingView: React.FC = () => {
     { id: 'hk-4', room: '104', roomType: 'Deluxe', status: 'In Process', availability: 'Available', name: 'Katie Sims', remarks: 'Bar is totally empty' },
     { id: 'hk-5', room: '105', roomType: 'Deluxe', status: 'In Process', availability: 'Available', name: 'Jerry Helfer', remarks: '...' },
     { id: 'hk-6', room: '106', roomType: 'Deluxe', status: 'Dirty', availability: 'Cancel', name: 'Chris Glasser', remarks: '...' },
-    { id: 'hk-7', room: '107', roomType: 'Deluxe', status: 'Clean', availability: 'Occupied', name: 'Paula Mora', remarks: '...' },
+    { id: 'hk-7', room: '107', roomType: 'Deluxe', status: 'Inspected', availability: 'Occupied', name: 'Paula Mora', remarks: 'Supervisor inspected & approved' },
     { id: 'hk-8', room: '108', roomType: 'Deluxe', status: 'In Process', availability: 'Available', name: 'Alex Buckmaster', remarks: 'Broken lamp' },
     { id: 'hk-9', room: '109', roomType: 'Deluxe', status: 'Clean', availability: 'Occupied', name: 'Rhonda Rhodes', remarks: '...' },
     { id: 'hk-10', room: '110', roomType: 'Deluxe', status: 'In Process', availability: 'Available', name: 'David Elson', remarks: '...' },
     { id: 'hk-11', room: 'Suite1', roomType: 'Suite', status: 'In Process', availability: 'Available', name: 'Joshua Jones', remarks: '...' },
     { id: 'hk-12', room: 'Suite2', roomType: 'Suite', status: 'Dirty', availability: 'Cancel', name: 'Kimberly Mastrangelo', remarks: 'Missed things. Need security' },
-    { id: 'hk-13', room: 'Suite3', roomType: 'Suite', status: 'Clean', availability: 'Occupied', name: 'Judith Rodriguez', remarks: '...' }
+    { id: 'hk-13', room: 'Suite3', roomType: 'Suite', status: 'Inspected', availability: 'Occupied', name: 'Judith Rodriguez', remarks: 'VIP inspected & fruit basket placed' }
   ]);
 
   // Maintenance Work Orders state
@@ -79,7 +84,231 @@ export const HousekeepingView: React.FC = () => {
     remarks: ''
   });
 
-  // Toggle selection
+  // --------------------------------------------------------------------------
+  // Instant Auto-Refresh & Global Data Synchronization Engine
+  // --------------------------------------------------------------------------
+  const fetchHousekeepingData = useCallback(async () => {
+    try {
+      setIsLiveSyncing(true);
+      const [roomsRes, tasksRes] = await Promise.all([
+        fetch('/api/rooms'),
+        fetch('/api/housekeeping/tasks')
+      ]);
+
+      if (roomsRes.ok && tasksRes.ok) {
+        const roomsData = await roomsRes.json();
+        const tasksData = await tasksRes.json();
+
+        if (Array.isArray(roomsData) && roomsData.length > 0) {
+          setRows(prevRows => {
+            return roomsData.map((rm: any) => {
+              const existingRow = prevRows.find(pr => pr.room === rm.roomNumber);
+              const matchingTask = Array.isArray(tasksData) 
+                ? tasksData.find((t: any) => t.roomNumber === rm.roomNumber || t.roomId === rm.id)
+                : null;
+
+              // Determine status from room and task
+              let status: HousekeepingRow['status'] = 'Clean';
+              if (rm.status === 'OutOfOrder') {
+                status = 'Under Maintenance';
+              } else if (rm.status === 'Dirty') {
+                status = 'Dirty';
+              } else if (rm.status === 'Cleaning') {
+                status = 'In Process';
+              } else if (matchingTask?.cleanStatus) {
+                if (matchingTask.cleanStatus === 'Repair' || matchingTask.cleanStatus === 'Under Maintenance') {
+                  status = 'Under Maintenance';
+                } else {
+                  status = matchingTask.cleanStatus;
+                }
+              } else if (rm.status === 'Inspected') {
+                status = 'Inspected';
+              } else if (rm.status === 'Available') {
+                status = 'Clean';
+              } else if (rm.status === 'Occupied') {
+                status = existingRow?.status || 'Clean';
+              }
+
+              let availability: HousekeepingRow['availability'] = 'Available';
+              if (status === 'Under Maintenance' || rm.status === 'OutOfOrder') {
+                availability = 'Out of Order';
+              } else if (rm.status === 'Occupied' || (rm.currentGuest && rm.currentGuest.trim() !== '')) {
+                availability = 'Occupied';
+              } else if (existingRow?.availability === 'Cancel') {
+                availability = 'Cancel';
+              }
+
+              return {
+                id: existingRow?.id || matchingTask?.id || `hk-${rm.roomNumber}`,
+                room: rm.roomNumber,
+                roomType: (rm.category === 'Deluxe' ? 'Deluxe' : (rm.category || '').includes('Suite') ? 'Suite' : 'Standard') as any,
+                status,
+                availability,
+                name: rm.currentGuest || matchingTask?.guestName || existingRow?.name || 'Vacant',
+                remarks: matchingTask?.remarks || existingRow?.remarks || '...'
+              };
+            });
+          });
+          setLastSyncTime(new Date());
+        }
+      }
+    } catch (err) {
+      console.warn('Live housekeeping auto-refresh notice', err);
+    } finally {
+      setIsLiveSyncing(false);
+    }
+  }, []);
+
+  // Periodic polling & event-driven auto-refresh
+  useEffect(() => {
+    // Initial fetch on mount
+    void fetchHousekeepingData();
+
+    // High-frequency live polling (every 3.5 seconds) for instant background updates
+    const autoRefreshTimer = setInterval(() => {
+      void fetchHousekeepingData();
+    }, 3500);
+
+    // Event listener for instant cross-component updates
+    const handleGlobalUpdate = () => {
+      void fetchHousekeepingData();
+    };
+    window.addEventListener('hms:room-status-changed', handleGlobalUpdate);
+    window.addEventListener('hms:rooms-updated', handleGlobalUpdate);
+
+    return () => {
+      clearInterval(autoRefreshTimer);
+      window.removeEventListener('hms:room-status-changed', handleGlobalUpdate);
+      window.removeEventListener('hms:rooms-updated', handleGlobalUpdate);
+    };
+  }, [fetchHousekeepingData]);
+
+  // --------------------------------------------------------------------------
+  // Quick-Action Toggle Button Implementation
+  // Sets room to 'Clean', 'Dirty', or 'Under Maintenance' with instant auto-refresh
+  // --------------------------------------------------------------------------
+  const handleQuickActionStatus = async (roomNumber: string, nextStatus: 'Clean' | 'Dirty' | 'Inspected' | 'Under Maintenance') => {
+    // 1. Optimistic Instant Local State Update (0ms latency)
+    setStatusUpdatingRoom(roomNumber);
+    setTimeout(() => setStatusUpdatingRoom(null), 600);
+
+    setRows(prev => prev.map(r => {
+      if (r.room === roomNumber) {
+        let newAvailability: HousekeepingRow['availability'] = r.availability;
+        if (nextStatus === 'Under Maintenance') {
+          newAvailability = 'Out of Order';
+        } else if (nextStatus === 'Clean' || nextStatus === 'Inspected') {
+          newAvailability = (r.availability === 'Occupied' || (r.name && r.name !== 'Vacant')) ? 'Occupied' : 'Available';
+        } else if (nextStatus === 'Dirty') {
+          newAvailability = r.availability === 'Occupied' ? 'Occupied' : 'Available';
+        }
+        return {
+          ...r,
+          status: nextStatus,
+          availability: newAvailability
+        };
+      }
+      return r;
+    }));
+
+    // 2. Broadcast instant global room state event
+    window.dispatchEvent(new CustomEvent('hms:room-status-changed', {
+      detail: { roomNumber, status: nextStatus }
+    }));
+    window.dispatchEvent(new CustomEvent('hms:rooms-updated', {
+      detail: { roomNumber, status: nextStatus }
+    }));
+
+    // 3. Instant synchronization with backend endpoints
+    const mappedRoomStatus = nextStatus === 'Under Maintenance' ? 'OutOfOrder' : nextStatus;
+    try {
+      await Promise.allSettled([
+        fetch(`/api/housekeeping/tasks/${roomNumber}/clean-status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cleanStatus: nextStatus })
+        }),
+        fetch(`/api/rooms/${roomNumber}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: mappedRoomStatus })
+        })
+      ]);
+      setLastSyncTime(new Date());
+    } catch (err) {
+      console.warn('Backend status synchronization error', err);
+    }
+  };
+
+  // Quick-action cycle toggle: Dirty -> Clean -> Inspected -> Under Maintenance -> Dirty
+  const handleToggleStatusCycle = (roomNumber: string) => {
+    const row = rows.find(r => r.room === roomNumber);
+    if (!row) return;
+
+    const cycleMap: Record<string, 'Clean' | 'Dirty' | 'Inspected' | 'Under Maintenance'> = {
+      'Dirty': 'Clean',
+      'Clean': 'Inspected',
+      'Inspected': 'Under Maintenance',
+      'Under Maintenance': 'Dirty',
+      'Repair': 'Dirty',
+      'In Process': 'Clean'
+    };
+
+    const next = cycleMap[row.status] || 'Clean';
+    void handleQuickActionStatus(roomNumber, next);
+  };
+
+  // Batch Quick Actions for selected rooms
+  const handleBatchUpdateStatus = async (targetStatus: 'Clean' | 'Dirty' | 'Inspected' | 'Under Maintenance') => {
+    if (selectedRooms.length === 0) return;
+    const roomsToUpdate = [...selectedRooms];
+
+    // Optimistic batch update
+    setRows(prev => prev.map(r => {
+      if (roomsToUpdate.includes(r.room)) {
+        let newAvailability: HousekeepingRow['availability'] = r.availability;
+        if (targetStatus === 'Under Maintenance') {
+          newAvailability = 'Out of Order';
+        } else if (targetStatus === 'Clean' || targetStatus === 'Inspected') {
+          newAvailability = (r.availability === 'Occupied' || (r.name && r.name !== 'Vacant')) ? 'Occupied' : 'Available';
+        }
+        return { ...r, status: targetStatus, availability: newAvailability };
+      }
+      return r;
+    }));
+
+    // Broadcast global updates
+    roomsToUpdate.forEach(rm => {
+      window.dispatchEvent(new CustomEvent('hms:room-status-changed', {
+        detail: { roomNumber: rm, status: targetStatus }
+      }));
+    });
+    window.dispatchEvent(new CustomEvent('hms:rooms-updated', {
+      detail: { count: roomsToUpdate.length }
+    }));
+
+    // Backend sync in parallel
+    const mappedStatus = targetStatus === 'Under Maintenance' ? 'OutOfOrder' : targetStatus;
+    await Promise.allSettled(
+      roomsToUpdate.flatMap(rm => [
+        fetch(`/api/housekeeping/tasks/${rm}/clean-status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cleanStatus: targetStatus })
+        }),
+        fetch(`/api/rooms/${rm}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: mappedStatus })
+        })
+      ])
+    );
+
+    setSelectedRooms([]);
+    setLastSyncTime(new Date());
+  };
+
+  // Selection handlers
   const handleToggleSelect = (room: string) => {
     setSelectedRooms(prev => 
       prev.includes(room) ? prev.filter(r => r !== room) : [...prev, room]
@@ -92,27 +321,6 @@ export const HousekeepingView: React.FC = () => {
     } else {
       setSelectedRooms(rows.map(r => r.room));
     }
-  };
-
-  // Cycle room status: In Process -> Clean -> Dirty -> Repair -> In Process
-  const handleCycleStatus = async (id: string) => {
-    const statusCycle: HousekeepingRow['status'][] = ['In Process', 'Clean', 'Dirty', 'Repair'];
-    setRows(prev => prev.map(r => {
-      if (r.id === id) {
-        const nextIdx = (statusCycle.indexOf(r.status) + 1) % statusCycle.length;
-        const nextStatus = statusCycle[nextIdx];
-        
-        // Sync with backend
-        fetch(`/api/housekeeping/tasks/${r.room}/clean-status`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cleanStatus: nextStatus })
-        }).catch(() => {});
-
-        return { ...r, status: nextStatus };
-      }
-      return r;
-    }));
   };
 
   // Create new work order
@@ -166,37 +374,95 @@ export const HousekeepingView: React.FC = () => {
     }));
   };
 
+  // Filtered rows
   const filteredRows = viewFilter === 'All rooms' 
     ? rows 
+    : viewFilter === 'Under Maintenance'
+    ? rows.filter(r => r.status === 'Under Maintenance' || r.status === 'Repair')
     : rows.filter(r => r.status === viewFilter);
 
+  // Dynamic Live Counts from rows
+  const maintenanceCount = rows.filter(r => r.status === 'Under Maintenance' || r.status === 'Repair').length;
+  const inProcessCount = rows.filter(r => r.status === 'In Process').length;
+  const cleanCount = rows.filter(r => r.status === 'Clean').length;
+  const dirtyCount = rows.filter(r => r.status === 'Dirty').length;
+  const inspectedCount = rows.filter(r => r.status === 'Inspected').length;
+
   return (
-    <div className="animate-fade-in" style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="animate-fade-in responsive-view-container">
       
       {/* ---------------------------------------------------- */}
       {/* 1. TOP HEADER & VIEW TOGGLES */}
       {/* ---------------------------------------------------- */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
+      <div className="responsive-action-header" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h1 style={{
-            fontSize: '24px',
+            fontSize: 'clamp(20px, 2.5vw, 24px)',
             fontWeight: '800',
             color: '#0F172A',
             letterSpacing: '-0.3px',
             margin: 0
           }}>
-            Housekeeping Operations & Turnover Board
+            Housekeeping
           </h1>
-          <p style={{ fontSize: '13px', color: '#64748B', marginTop: '4px' }}>
-            Real-time room sanitization status, maintenance work tickets, and linen logistics.
-          </p>
+
+          {/* Instant Auto-Refresh Live Status Indicator */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            backgroundColor: '#ECFDF5',
+            border: '1px solid #A7F3D0',
+            padding: '3px 10px',
+            borderRadius: '9999px',
+            fontSize: '11px',
+            fontWeight: '700',
+            color: '#065F46'
+          }}>
+            <span style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: '#10B981',
+              display: 'inline-block',
+              boxShadow: '0 0 0 2px rgba(16, 185, 129, 0.3)'
+            }} />
+            <span>Auto-Refresh Active</span>
+            <span style={{ color: '#059669', fontSize: '10px', opacity: 0.9, marginLeft: '2px' }}>
+              ({lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })})
+            </span>
+          </div>
+
+          <button
+            id="manual-instant-refresh-btn"
+            onClick={() => void fetchHousekeepingData()}
+            title="Trigger instant auto-refresh"
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #CBD5E1',
+              color: '#334155',
+              borderRadius: '8px',
+              padding: '5px 10px',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              transition: 'background 0.15s ease'
+            }}
+          >
+            <RefreshCw size={13} className={isLiveSyncing ? 'animate-spin' : ''} />
+            <span>Sync Now</span>
+          </button>
         </div>
 
         {/* View Tabs & Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           {/* Sub-Tabs: Table, Maintenance, Mobile App */}
           <div style={{ display: 'flex', backgroundColor: '#F1F5F9', padding: '4px', borderRadius: '8px', gap: '4px' }}>
             <button
+              id="view-tab-table"
               onClick={() => setSelectedTab('table')}
               style={{
                 display: 'flex',
@@ -218,6 +484,7 @@ export const HousekeepingView: React.FC = () => {
             </button>
 
             <button
+              id="view-tab-maintenance"
               onClick={() => setSelectedTab('maintenance')}
               style={{
                 display: 'flex',
@@ -235,10 +502,11 @@ export const HousekeepingView: React.FC = () => {
               }}
             >
               <Wrench size={14} />
-              <span>Maintenance Orders ({maintenanceOrders.filter(m => m.status !== 'Resolved').length})</span>
+              <span>Maintenance ({maintenanceOrders.filter(m => m.status !== 'Resolved').length})</span>
             </button>
 
             <button
+              id="view-tab-mobile"
               onClick={() => setSelectedTab('mobile')}
               style={{
                 display: 'flex',
@@ -260,198 +528,359 @@ export const HousekeepingView: React.FC = () => {
             </button>
           </div>
 
-          {/* Filter Button matching image */}
+          {/* Filter Reset Button */}
           <button
+            id="filter-reset-btn"
             onClick={() => setViewFilter('All rooms')}
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: viewFilter === 'All rooms' ? '#0E94A8' : '#FFFFFF',
               border: '1.5px solid #0E94A8',
-              color: '#0E94A8',
+              color: viewFilter === 'All rooms' ? '#FFFFFF' : '#0E94A8',
               borderRadius: '8px',
-              padding: '6px 16px',
-              fontSize: '13px',
+              padding: '6px 14px',
+              fontSize: '12px',
               fontWeight: '700',
               cursor: 'pointer'
             }}
           >
-            Filter
+            All Rooms
           </button>
         </div>
       </div>
 
       {/* ---------------------------------------------------- */}
-      {/* 2. STATS & VIEW BY DROPDOWN (MATCHING IMAGE 2) */}
+      {/* 2. DYNAMIC STATS & VIEW BY DROPDOWN */}
       {/* ---------------------------------------------------- */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-        {/* 4 Stat Cards - Clickable for Room-Wise Drilldown */}
+        {/* 4 Interactive Stat Cards (Live Auto-Refreshing Counts) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {/* REPAIR 6 */}
+          {/* UNDER MAINTENANCE / REPAIR */}
           <div 
-            onClick={() => setShowTurnoverDrilldown(true)}
-            title="Click to drill down room-wise"
+            id="stat-card-maintenance"
+            onClick={() => setViewFilter(viewFilter === 'Under Maintenance' ? 'All rooms' : 'Under Maintenance')}
             style={{
-              backgroundColor: '#EBF3FB',
+              backgroundColor: viewFilter === 'Under Maintenance' ? '#DBEAFE' : '#EBF3FB',
               borderRadius: '12px',
               padding: '10px 18px',
-              minWidth: '115px',
-              border: '1px solid #D6E8F9',
+              minWidth: '120px',
+              border: viewFilter === 'Under Maintenance' ? '2px solid #2563EB' : '1px solid #D6E8F9',
               cursor: 'pointer',
-              transition: 'transform 0.15s ease'
+              transition: 'all 0.15s ease'
             }}
-            className="hover:scale-105"
+            title="Filter by Under Maintenance rooms"
           >
-            <div style={{ fontSize: '10px', fontWeight: '800', color: '#4B7FB5', letterSpacing: '0.5px' }}>
-              REPAIR
+            <div style={{ fontSize: '10px', fontWeight: '800', color: '#1E40AF', letterSpacing: '0.5px' }}>
+              UNDER MAINTENANCE
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
-              <BedDouble size={18} color="#3B82F6" />
-              <span style={{ fontSize: '20px', fontWeight: '800', color: '#1E40AF' }}>6</span>
+              <Wrench size={18} color="#2563EB" />
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#1E40AF' }}>{maintenanceCount}</span>
             </div>
           </div>
 
-          {/* IN PROCESS 26 */}
+          {/* IN PROCESS */}
           <div 
-            onClick={() => setShowTurnoverDrilldown(true)}
-            title="Click to drill down room-wise"
+            id="stat-card-inprocess"
+            onClick={() => setViewFilter(viewFilter === 'In Process' ? 'All rooms' : 'In Process')}
             style={{
-              backgroundColor: '#FFFBEB',
+              backgroundColor: viewFilter === 'In Process' ? '#FEF3C7' : '#FFFBEB',
               borderRadius: '12px',
               padding: '10px 18px',
               minWidth: '115px',
-              border: '1px solid #FDE68A',
+              border: viewFilter === 'In Process' ? '2px solid #D97706' : '1px solid #FDE68A',
               cursor: 'pointer',
-              transition: 'transform 0.15s ease'
+              transition: 'all 0.15s ease'
             }}
-            className="hover:scale-105"
+            title="Filter by In Process rooms"
           >
             <div style={{ fontSize: '10px', fontWeight: '800', color: '#B45309', letterSpacing: '0.5px' }}>
               IN PROCESS
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
               <BedDouble size={18} color="#D97706" />
-              <span style={{ fontSize: '20px', fontWeight: '800', color: '#B45309' }}>26</span>
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#B45309' }}>{inProcessCount}</span>
             </div>
           </div>
 
-          {/* CLEAN 8 */}
+          {/* CLEAN */}
           <div 
-            onClick={() => setShowTurnoverDrilldown(true)}
-            title="Click to drill down room-wise"
+            id="stat-card-clean"
+            onClick={() => setViewFilter(viewFilter === 'Clean' ? 'All rooms' : 'Clean')}
             style={{
-              backgroundColor: '#EDFAF1',
+              backgroundColor: viewFilter === 'Clean' ? '#DCFCE7' : '#EDFAF1',
               borderRadius: '12px',
               padding: '10px 18px',
               minWidth: '115px',
-              border: '1px solid #C9F2D5',
+              border: viewFilter === 'Clean' ? '2px solid #16A34A' : '1px solid #C9F2D5',
               cursor: 'pointer',
-              transition: 'transform 0.15s ease'
+              transition: 'all 0.15s ease'
             }}
-            className="hover:scale-105"
+            title="Filter by Clean rooms"
           >
             <div style={{ fontSize: '10px', fontWeight: '800', color: '#15803D', letterSpacing: '0.5px' }}>
               CLEAN
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
               <Check size={18} color="#16A34A" strokeWidth={3} />
-              <span style={{ fontSize: '20px', fontWeight: '800', color: '#166534' }}>8</span>
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#166534' }}>{cleanCount}</span>
             </div>
           </div>
 
-          {/* DIRTY 3 */}
+          {/* DIRTY */}
           <div 
-            onClick={() => setShowTurnoverDrilldown(true)}
-            title="Click to drill down room-wise"
+            id="stat-card-dirty"
+            onClick={() => setViewFilter(viewFilter === 'Dirty' ? 'All rooms' : 'Dirty')}
             style={{
-              backgroundColor: '#FDF0F0',
+              backgroundColor: viewFilter === 'Dirty' ? '#FEE2E2' : '#FDF0F0',
               borderRadius: '12px',
               padding: '10px 18px',
               minWidth: '115px',
-              border: '1px solid #FCD4D4',
+              border: viewFilter === 'Dirty' ? '2px solid #DC2626' : '1px solid #FCD4D4',
               cursor: 'pointer',
-              transition: 'transform 0.15s ease'
+              transition: 'all 0.15s ease'
             }}
-            className="hover:scale-105"
+            title="Filter by Dirty rooms"
           >
             <div style={{ fontSize: '10px', fontWeight: '800', color: '#B91C1C', letterSpacing: '0.5px' }}>
               DIRTY
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
               <X size={18} color="#DC2626" strokeWidth={3} />
-              <span style={{ fontSize: '20px', fontWeight: '800', color: '#991B1B' }}>3</span>
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#991B1B' }}>{dirtyCount}</span>
             </div>
           </div>
 
-          <button
-            onClick={() => setShowTurnoverDrilldown(true)}
+          {/* INSPECTED */}
+          <div 
+            id="stat-card-inspected"
+            onClick={() => setViewFilter(viewFilter === 'Inspected' ? 'All rooms' : 'Inspected')}
             style={{
-              backgroundColor: '#0F172A',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '8px 14px',
-              fontSize: '11px',
-              fontWeight: '700',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer'
+              backgroundColor: viewFilter === 'Inspected' ? '#E0F2FE' : '#F0F9FF',
+              borderRadius: '12px',
+              padding: '10px 18px',
+              minWidth: '115px',
+              border: viewFilter === 'Inspected' ? '2px solid #0284C7' : '1px solid #BAE6FD',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
             }}
+            title="Filter by Inspected rooms"
           >
-            <Sparkles size={13} color="#D4F05B" />
-            <span>Room-wise Turnover Drill-Down</span>
-          </button>
+            <div style={{ fontSize: '10px', fontWeight: '800', color: '#0369A1', letterSpacing: '0.5px' }}>
+              INSPECTED
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+              <ShieldCheck size={18} color="#0284C7" strokeWidth={2.5} />
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#075985' }}>{inspectedCount}</span>
+            </div>
+          </div>
         </div>
 
-        {/* View by Dropdown */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-          <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>View by</span>
+        {/* View by Status Dropdown & Quick Toggle Buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>Filter Status:</span>
+            {/* Quick-toggle pill buttons between Dirty, Clean, Inspected */}
+            <div style={{ display: 'inline-flex', backgroundColor: '#F1F5F9', padding: '3px', borderRadius: '8px', gap: '3px' }}>
+              {(['All rooms', 'Dirty', 'Clean', 'Inspected'] as const).map(st => (
+                <button
+                  key={st}
+                  id={`status-toggle-pill-${st.toLowerCase().replace(' ', '-')}`}
+                  type="button"
+                  onClick={() => setViewFilter(st)}
+                  style={{
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    backgroundColor: viewFilter === st ? '#0E94A8' : 'transparent',
+                    color: viewFilter === st ? '#FFFFFF' : '#475569',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {st === 'All rooms' ? 'All' : st}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <select
+            id="housekeeping-view-filter-select"
             value={viewFilter}
             onChange={(e) => setViewFilter(e.target.value as any)}
+            aria-label="Filter housekeeping rooms by status"
             style={{
               backgroundColor: '#FFFFFF',
-              border: '1px solid #CBD5E1',
+              border: '1.5px solid #0E94A8',
               borderRadius: '8px',
-              padding: '8px 16px',
+              padding: '8px 14px',
               fontSize: '13px',
               fontWeight: '700',
               color: '#0F172A',
               cursor: 'pointer',
-              minWidth: '180px'
+              minWidth: '220px',
+              outline: 'none'
             }}
           >
-            <option value="All rooms">All rooms</option>
-            <option value="In Process">In Process</option>
-            <option value="Clean">Clean</option>
-            <option value="Dirty">Dirty</option>
-            <option value="Repair">Repair</option>
+            <option value="All rooms">All statuses ({rows.length})</option>
+            <option value="Dirty">Dirty ({dirtyCount})</option>
+            <option value="Clean">Clean ({cleanCount})</option>
+            <option value="Inspected">Inspected ({inspectedCount})</option>
+            <option value="In Process">In Process ({inProcessCount})</option>
+            <option value="Under Maintenance">Under Maintenance ({maintenanceCount})</option>
           </select>
         </div>
       </div>
 
       {/* ---------------------------------------------------- */}
-      {/* 3. MAIN CONTENT BASED ON SELECTED TAB */}
+      {/* 3. MULTI-SELECT BATCH QUICK-ACTION BAR */}
       {/* ---------------------------------------------------- */}
-      
-      {/* TAB A: MAIN ROOMS TABLE (EXACT MATCH OF IMAGE 2) */}
+      {selectedRooms.length > 0 && (
+        <div 
+          id="batch-quick-action-bar"
+          style={{
+            backgroundColor: '#0F172A',
+            color: '#FFFFFF',
+            padding: '10px 18px',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.25)',
+            margin: '8px 0',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700' }}>
+            <CheckCircle2 size={16} color="#38BDF8" />
+            <span>{selectedRooms.length} room{selectedRooms.length > 1 ? 's' : ''} selected</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '12px', opacity: 0.85 }}>Quick-Set Status:</span>
+            <button
+              id="batch-set-clean-btn"
+              onClick={() => void handleBatchUpdateStatus('Clean')}
+              style={{
+                backgroundColor: '#16A34A',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '11px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <Check size={12} strokeWidth={3} />
+              <span>Mark Clean</span>
+            </button>
+            <button
+              id="batch-set-dirty-btn"
+              onClick={() => void handleBatchUpdateStatus('Dirty')}
+              style={{
+                backgroundColor: '#DC2626',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '11px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <X size={12} strokeWidth={3} />
+              <span>Mark Dirty</span>
+            </button>
+            <button
+              id="batch-set-inspected-btn"
+              onClick={() => void handleBatchUpdateStatus('Inspected')}
+              style={{
+                backgroundColor: '#0284C7',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '11px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <ShieldCheck size={12} strokeWidth={2.5} />
+              <span>Mark Inspected</span>
+            </button>
+            <button
+              id="batch-set-maintenance-btn"
+              onClick={() => void handleBatchUpdateStatus('Under Maintenance')}
+              style={{
+                backgroundColor: '#2563EB',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '11px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <Wrench size={12} strokeWidth={2.5} />
+              <span>Mark Under Maintenance</span>
+            </button>
+            <button
+              onClick={() => setSelectedRooms([])}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 10px',
+                fontSize: '11px',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              Deselect
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 4. MAIN ROOMS TABLE WITH QUICK-ACTION TOGGLE BUTTONS */}
+      {/* ---------------------------------------------------- */}
       {selectedTab === 'table' && (
         <div className="lodgify-card" style={{ padding: 0, overflowX: 'auto', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '950px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1040px' }}>
             <thead>
               <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                <th style={{ width: '48px', padding: '14px 16px', textAlign: 'center' }}>
+                <th style={{ width: '44px', padding: '14px 16px', textAlign: 'center' }}>
                   <input
+                    id="select-all-rooms-checkbox"
                     type="checkbox"
-                    checked={selectedRooms.length === rows.length}
+                    checked={selectedRooms.length === rows.length && rows.length > 0}
                     onChange={handleSelectAll}
                     style={{ cursor: 'pointer', accentColor: '#0E94A8' }}
                   />
                 </th>
                 <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>Room</th>
                 <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>Room Type</th>
-                <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>Status</th>
+                <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>Current Status</th>
+                <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>Quick-Action Toggle</th>
                 <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>Availability</th>
-                <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>Name</th>
+                <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>Guest / Occupant</th>
                 <th style={{ padding: '14px 16px', textAlign: 'left', fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>Remarks</th>
               </tr>
             </thead>
@@ -459,19 +888,22 @@ export const HousekeepingView: React.FC = () => {
             <tbody>
               {filteredRows.map((r) => {
                 const isSelected = selectedRooms.includes(r.room);
+                const isUpdating = statusUpdatingRoom === r.room;
 
                 return (
                   <tr
-                    key={r.id}
+                    key={r.id || r.room}
+                    id={`housekeeping-row-${r.room}`}
                     style={{
                       borderBottom: '1px solid #F1F5F9',
-                      backgroundColor: isSelected ? '#F0FDFA' : '#FFFFFF',
-                      transition: 'background 0.15s ease'
+                      backgroundColor: isUpdating ? '#EFF6FF' : isSelected ? '#F0FDFA' : '#FFFFFF',
+                      transition: 'background 0.2s ease'
                     }}
                   >
                     {/* Checkbox */}
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                       <input
+                        id={`room-checkbox-${r.room}`}
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSelect(r.room)}
@@ -481,7 +913,10 @@ export const HousekeepingView: React.FC = () => {
 
                     {/* Room */}
                     <td style={{ padding: '12px 16px', fontWeight: '800', fontSize: '13px', color: '#0F172A' }}>
-                      {r.room}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{r.room}</span>
+                        {isUpdating && <Sparkles size={13} color="#2563EB" className="animate-spin" />}
+                      </span>
                     </td>
 
                     {/* Room Type */}
@@ -489,15 +924,16 @@ export const HousekeepingView: React.FC = () => {
                       {r.roomType}
                     </td>
 
-                    {/* Status Badge (Clickable to cycle!) */}
+                    {/* Status Badge (Clickable Quick Toggle) */}
                     <td style={{ padding: '12px 16px' }}>
                       <button
-                        onClick={() => handleCycleStatus(r.id)}
-                        title="Click to cycle status: In Process -> Clean -> Dirty -> Repair"
+                        id={`status-badge-toggle-${r.room}`}
+                        onClick={() => handleToggleStatusCycle(r.room)}
+                        title={`Click to cycle: ${r.status} → ${r.status === 'Dirty' ? 'Clean' : r.status === 'Clean' ? 'Inspected' : r.status === 'Inspected' ? 'Under Maintenance' : 'Dirty'}`}
                         style={{
                           border: 'none',
                           borderRadius: '6px',
-                          padding: '6px 14px',
+                          padding: '6px 12px',
                           fontSize: '12px',
                           fontWeight: '800',
                           cursor: 'pointer',
@@ -505,15 +941,161 @@ export const HousekeepingView: React.FC = () => {
                           alignItems: 'center',
                           gap: '6px',
                           backgroundColor: 
-                            r.status === 'In Process' ? '#F59E0B' :
                             r.status === 'Clean' ? '#16A34A' :
-                            r.status === 'Dirty' ? '#DC2626' : '#2563EB',
+                            r.status === 'Dirty' ? '#DC2626' :
+                            r.status === 'Inspected' ? '#0284C7' :
+                            (r.status === 'Under Maintenance' || r.status === 'Repair') ? '#2563EB' : '#F59E0B',
                           color: '#FFFFFF',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                          transition: 'all 0.15s ease'
                         }}
                       >
-                        <span>{r.status}</span>
+                        {r.status === 'Clean' && <Check size={14} strokeWidth={2.5} />}
+                        {r.status === 'Dirty' && <AlertCircle size={14} strokeWidth={2.5} />}
+                        {r.status === 'Inspected' && <ShieldCheck size={14} strokeWidth={2.5} />}
+                        {(r.status === 'Under Maintenance' || r.status === 'Repair') && <Wrench size={14} strokeWidth={2.5} />}
+                        {r.status === 'In Process' && <RefreshCw size={14} strokeWidth={2.5} />}
+                        <span>{r.status === 'Repair' ? 'Under Maintenance' : r.status}</span>
                       </button>
+                    </td>
+
+                    {/* Quick-Action Toggle Buttons Segmented Group */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        backgroundColor: '#F8FAFC',
+                        padding: '3px 4px',
+                        borderRadius: '8px',
+                        border: '1px solid #E2E8F0'
+                      }}>
+                        {/* Quick Action: Dirty */}
+                        <button
+                          id={`quick-toggle-dirty-${r.room}`}
+                          type="button"
+                          onClick={() => void handleQuickActionStatus(r.room, 'Dirty')}
+                          title="Instant Quick Action: Set status to Dirty"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            fontWeight: r.status === 'Dirty' ? '800' : '600',
+                            cursor: 'pointer',
+                            backgroundColor: r.status === 'Dirty' ? '#DC2626' : 'transparent',
+                            color: r.status === 'Dirty' ? '#FFFFFF' : '#B91C1C',
+                            boxShadow: r.status === 'Dirty' ? '0 1px 2px rgba(220, 38, 38, 0.3)' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <X size={12} strokeWidth={3} />
+                          <span>Dirty</span>
+                        </button>
+
+                        {/* Quick Action: Clean */}
+                        <button
+                          id={`quick-toggle-clean-${r.room}`}
+                          type="button"
+                          onClick={() => void handleQuickActionStatus(r.room, 'Clean')}
+                          title="Instant Quick Action: Set status to Clean"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            fontWeight: r.status === 'Clean' ? '800' : '600',
+                            cursor: 'pointer',
+                            backgroundColor: r.status === 'Clean' ? '#16A34A' : 'transparent',
+                            color: r.status === 'Clean' ? '#FFFFFF' : '#15803D',
+                            boxShadow: r.status === 'Clean' ? '0 1px 2px rgba(22, 163, 74, 0.3)' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <Check size={12} strokeWidth={3} />
+                          <span>Clean</span>
+                        </button>
+
+                        {/* Quick Action: Inspected */}
+                        <button
+                          id={`quick-toggle-inspected-${r.room}`}
+                          type="button"
+                          onClick={() => void handleQuickActionStatus(r.room, 'Inspected')}
+                          title="Instant Quick Action: Set status to Inspected"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            fontWeight: r.status === 'Inspected' ? '800' : '600',
+                            cursor: 'pointer',
+                            backgroundColor: r.status === 'Inspected' ? '#0284C7' : 'transparent',
+                            color: r.status === 'Inspected' ? '#FFFFFF' : '#0369A1',
+                            boxShadow: r.status === 'Inspected' ? '0 1px 2px rgba(2, 132, 199, 0.3)' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <ShieldCheck size={12} strokeWidth={2.5} />
+                          <span>Inspected</span>
+                        </button>
+
+                        {/* Quick Action: Under Maintenance */}
+                        <button
+                          id={`quick-toggle-maint-${r.room}`}
+                          type="button"
+                          onClick={() => void handleQuickActionStatus(r.room, 'Under Maintenance')}
+                          title="Instant Quick Action: Set status to Under Maintenance"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            fontWeight: (r.status === 'Under Maintenance' || r.status === 'Repair') ? '800' : '600',
+                            cursor: 'pointer',
+                            backgroundColor: (r.status === 'Under Maintenance' || r.status === 'Repair') ? '#2563EB' : 'transparent',
+                            color: (r.status === 'Under Maintenance' || r.status === 'Repair') ? '#FFFFFF' : '#1D4ED8',
+                            boxShadow: (r.status === 'Under Maintenance' || r.status === 'Repair') ? '0 1px 2px rgba(37, 99, 235, 0.3)' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <Wrench size={12} strokeWidth={2.5} />
+                          <span>Under Maint</span>
+                        </button>
+
+                        {/* Cyclic Toggle Button */}
+                        <button
+                          id={`quick-cycle-btn-${r.room}`}
+                          type="button"
+                          onClick={() => handleToggleStatusCycle(r.room)}
+                          title="Quick Cycle: Clean → Dirty → Under Maintenance"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '4px 6px',
+                            backgroundColor: '#E2E8F0',
+                            color: '#475569',
+                            cursor: 'pointer',
+                            transition: 'background 0.12s ease'
+                          }}
+                        >
+                          <ArrowLeftRight size={12} />
+                        </button>
+                      </div>
                     </td>
 
                     {/* Availability */}
@@ -535,6 +1117,12 @@ export const HousekeepingView: React.FC = () => {
                           <span>Occupied</span>
                         </div>
                       )}
+                      {r.availability === 'Out of Order' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2563EB', fontWeight: '700', fontSize: '12px' }}>
+                          <Wrench size={14} color="#2563EB" />
+                          <span>Out of Order</span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Guest Name */}
@@ -554,10 +1142,12 @@ export const HousekeepingView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB B: AUTOMATED MAINTENANCE WORK ORDERS */}
+      {/* ---------------------------------------------------- */}
+      {/* 5. TAB B: AUTOMATED MAINTENANCE WORK ORDERS */}
+      {/* ---------------------------------------------------- */}
       {selectedTab === 'maintenance' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
                 Automated Maintenance & Equipment Work Orders
@@ -568,6 +1158,7 @@ export const HousekeepingView: React.FC = () => {
             </div>
 
             <button
+              id="log-maintenance-ticket-btn"
               onClick={() => setIsNewOrderModal(true)}
               style={{
                 backgroundColor: '#0E94A8',
@@ -649,12 +1240,14 @@ export const HousekeepingView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB C: MOBILE APP SIMULATOR FOR HOUSEKEEPING ATTENDANTS */}
+      {/* ---------------------------------------------------- */}
+      {/* 6. TAB C: MOBILE ATTENDANT APP SIMULATOR */}
+      {/* ---------------------------------------------------- */}
       {selectedTab === 'mobile' && (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
           {/* Mobile phone frame */}
           <div style={{
-            width: '360px',
+            width: '380px',
             backgroundColor: '#0F172A',
             borderRadius: '36px',
             padding: '12px',
@@ -667,27 +1260,38 @@ export const HousekeepingView: React.FC = () => {
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
-              height: '560px'
+              height: '590px'
             }}>
               {/* App Top Bar */}
               <div style={{ backgroundColor: '#0E94A8', color: '#FFFFFF', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div style={{ fontSize: '10px', opacity: 0.8, textTransform: 'uppercase' }}>Attendant App</div>
+                  <div style={{ fontSize: '10px', opacity: 0.85, textTransform: 'uppercase' }}>Attendant App (Live)</div>
                   <div style={{ fontSize: '15px', fontWeight: '800' }}>Priya Sharma</div>
                 </div>
-                <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: '700' }}>
-                  Floor 1 Lead
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#10B981'
+                  }} />
+                  <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: '700' }}>
+                    Floor 1 Lead
+                  </span>
+                </div>
               </div>
 
-              {/* Mobile Task List */}
+              {/* Mobile Task List with Quick Action Buttons */}
               <div style={{ padding: '14px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '800', color: '#0F172A', marginBottom: '2px' }}>
-                  Today's Room Queue (3 Remaining)
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '800', color: '#0F172A' }}>
+                    Room Queue ({rows.length} Rooms)
+                  </div>
+                  <span style={{ fontSize: '10px', color: '#64748B' }}>1-Tap Quick Action</span>
                 </div>
 
-                {rows.slice(0, 5).map(item => (
-                  <div key={item.id} style={{
+                {rows.slice(0, 8).map(item => (
+                  <div key={item.id || item.room} style={{
                     backgroundColor: '#FFFFFF',
                     borderRadius: '12px',
                     padding: '12px',
@@ -697,26 +1301,113 @@ export const HousekeepingView: React.FC = () => {
                     gap: '8px'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ fontSize: '14px', color: '#0F172A' }}>Room {item.room}</strong>
+                      <strong style={{ fontSize: '14px', color: '#0F172A' }}>Room {item.room} ({item.roomType})</strong>
                       <span style={{
                         fontSize: '10px',
                         fontWeight: '800',
                         padding: '2px 8px',
                         borderRadius: '9999px',
-                        backgroundColor: item.status === 'Clean' ? '#DCFCE7' : item.status === 'Dirty' ? '#FEE2E2' : '#FEF3C7',
-                        color: item.status === 'Clean' ? '#166534' : item.status === 'Dirty' ? '#991B1B' : '#92400E'
+                        backgroundColor: item.status === 'Clean' ? '#DCFCE7' : item.status === 'Dirty' ? '#FEE2E2' : item.status === 'Inspected' ? '#E0F2FE' : '#DBEAFE',
+                        color: item.status === 'Clean' ? '#166534' : item.status === 'Dirty' ? '#991B1B' : item.status === 'Inspected' ? '#0369A1' : '#1E40AF'
                       }}>
-                        {item.status}
+                        {item.status === 'Repair' ? 'Under Maintenance' : item.status}
                       </span>
                     </div>
 
                     <div style={{ fontSize: '11px', color: '#64748B' }}>
-                      Guest: {item.name} • Note: {item.remarks}
+                      Guest: <strong>{item.name}</strong> • Notes: {item.remarks}
+                    </div>
+
+                    {/* Quick-Action Buttons in Mobile View */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', marginTop: '2px' }}>
+                      <button
+                        onClick={() => void handleQuickActionStatus(item.room, 'Dirty')}
+                        style={{
+                          backgroundColor: item.status === 'Dirty' ? '#DC2626' : '#FEF2F2',
+                          color: item.status === 'Dirty' ? '#FFFFFF' : '#991B1B',
+                          border: '1px solid #FECACA',
+                          borderRadius: '6px',
+                          padding: '6px 2px',
+                          fontSize: '10px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '2px'
+                        }}
+                      >
+                        <X size={10} strokeWidth={3} />
+                        <span>Dirty</span>
+                      </button>
+
+                      <button
+                        onClick={() => void handleQuickActionStatus(item.room, 'Clean')}
+                        style={{
+                          backgroundColor: item.status === 'Clean' ? '#16A34A' : '#F0FDF4',
+                          color: item.status === 'Clean' ? '#FFFFFF' : '#166534',
+                          border: '1px solid #BBF7D0',
+                          borderRadius: '6px',
+                          padding: '6px 2px',
+                          fontSize: '10px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '2px'
+                        }}
+                      >
+                        <Check size={10} strokeWidth={3} />
+                        <span>Clean</span>
+                      </button>
+
+                      <button
+                        onClick={() => void handleQuickActionStatus(item.room, 'Inspected')}
+                        style={{
+                          backgroundColor: item.status === 'Inspected' ? '#0284C7' : '#F0F9FF',
+                          color: item.status === 'Inspected' ? '#FFFFFF' : '#0369A1',
+                          border: '1px solid #BAE6FD',
+                          borderRadius: '6px',
+                          padding: '6px 2px',
+                          fontSize: '10px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '2px'
+                        }}
+                      >
+                        <ShieldCheck size={10} strokeWidth={2.5} />
+                        <span>Inspect</span>
+                      </button>
+
+                      <button
+                        onClick={() => void handleQuickActionStatus(item.room, 'Under Maintenance')}
+                        style={{
+                          backgroundColor: (item.status === 'Under Maintenance' || item.status === 'Repair') ? '#2563EB' : '#EFF6FF',
+                          color: (item.status === 'Under Maintenance' || item.status === 'Repair') ? '#FFFFFF' : '#1D4ED8',
+                          border: '1px solid #BFDBFE',
+                          borderRadius: '6px',
+                          padding: '6px 2px',
+                          fontSize: '10px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '2px'
+                        }}
+                      >
+                        <Wrench size={10} strokeWidth={2.5} />
+                        <span>Maint</span>
+                      </button>
                     </div>
 
                     <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
                       <button
-                        onClick={() => handleCycleStatus(item.id)}
+                        onClick={() => handleToggleStatusCycle(item.room)}
                         style={{
                           flex: 1,
                           backgroundColor: '#0E94A8',
@@ -726,10 +1417,15 @@ export const HousekeepingView: React.FC = () => {
                           padding: '6px',
                           fontSize: '11px',
                           fontWeight: '700',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px'
                         }}
                       >
-                        Update Status
+                        <ArrowLeftRight size={11} />
+                        <span>Cycle Status</span>
                       </button>
                       <button
                         onClick={() => {
@@ -747,7 +1443,7 @@ export const HousekeepingView: React.FC = () => {
                           cursor: 'pointer'
                         }}
                       >
-                        Report Issue
+                        Report
                       </button>
                     </div>
                   </div>
@@ -766,7 +1462,7 @@ export const HousekeepingView: React.FC = () => {
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* 4. MODAL: REPORT MAINTENANCE TICKET */}
+      {/* 7. MODAL: REPORT MAINTENANCE TICKET */}
       {/* ---------------------------------------------------- */}
       {isNewOrderModal && (
         <div style={{
@@ -930,157 +1626,6 @@ export const HousekeepingView: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* ROOM-WISE TURNOVER & CLEANING DRILLDOWN MODAL */}
-      {showTurnoverDrilldown && (
-        <div className="modal-overlay">
-          <div className="modal-container" style={{ maxWidth: '750px', padding: '28px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Sparkles size={20} color="#0284C7" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                    Housekeeping: Room-Wise Turnover & Sanitization Drill-Down
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>
-                    Detailed cleaning phase checklist, attendant allocation, and turnover priority per room.
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowTurnoverDrilldown(false)} 
-                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {[
-                {
-                  room: 'Room 101',
-                  type: 'Deluxe King',
-                  attendant: 'Sunita Sharma (Floor 1)',
-                  cleanStatus: 'Dirty (Checkout Today)',
-                  guestNext: 'Sophia Laurent (Check-in 14:00)',
-                  priority: 'HIGH PRIORITY',
-                  stage: 'Strip Linen & Trash Removed',
-                  inspectionReady: false
-                },
-                {
-                  room: 'Room 104',
-                  type: 'Standard Twin',
-                  attendant: 'Ramesh Patel (Floor 1)',
-                  cleanStatus: 'In Process (Sanitization)',
-                  guestNext: 'Katie Sims (Check-in 15:30)',
-                  priority: 'MEDIUM',
-                  stage: 'Bathroom Sanitization & Fresh Linens',
-                  inspectionReady: false
-                },
-                {
-                  room: 'Room 106',
-                  type: 'Presidential Suite',
-                  attendant: 'Anita Roy (Floor 2)',
-                  cleanStatus: 'Dirty (Guest Checked Out)',
-                  guestNext: 'Lord Sterling (Arrival 16:00)',
-                  priority: 'VIP EXPEDITE',
-                  stage: 'Deep Clean & Minibar Restock',
-                  inspectionReady: false
-                },
-                {
-                  room: 'Room 108',
-                  type: 'Deluxe Suite',
-                  attendant: 'Vikram Singh (Maintenance)',
-                  cleanStatus: 'Repair & Inspection',
-                  guestNext: 'Pending HVAC repair sign-off',
-                  priority: 'MAINTENANCE',
-                  stage: 'AC Filter Replacement in progress',
-                  inspectionReady: false
-                },
-                {
-                  room: 'Room 103',
-                  type: 'Standard King',
-                  attendant: 'Sunita Sharma (Floor 1)',
-                  cleanStatus: 'Clean & Inspected',
-                  guestNext: 'Occupied (Dennis Callis)',
-                  priority: 'COMPLETED',
-                  stage: 'Passed Supervisor Checklist',
-                  inspectionReady: true
-                }
-              ].map((item, idx) => (
-                <div key={idx} style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>
-                        🏨 {item.room}
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>
-                        {item.type}
-                      </span>
-                    </div>
-                    <span style={{
-                      fontSize: '10px',
-                      fontWeight: '800',
-                      padding: '3px 8px',
-                      borderRadius: '9999px',
-                      backgroundColor: item.priority.includes('VIP') ? '#FEE2E2' : item.priority.includes('HIGH') ? '#FEF3C7' : item.priority.includes('COMPLETED') ? '#D1FAE5' : '#E2E8F0',
-                      color: item.priority.includes('VIP') ? '#991B1B' : item.priority.includes('HIGH') ? '#92400E' : item.priority.includes('COMPLETED') ? '#065F46' : '#334155'
-                    }}>
-                      {item.priority}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px', fontSize: '12px', color: '#475569', marginBottom: '10px' }}>
-                    <div>
-                      <div>👤 Attendant: <strong>{item.attendant}</strong></div>
-                      <div>📋 Status: <strong>{item.cleanStatus}</strong></div>
-                    </div>
-                    <div>
-                      <div>⏳ Stage: <strong>{item.stage}</strong></div>
-                      <div>➡️ Next: <strong>{item.guestNext}</strong></div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #E8EEF5', paddingTop: '10px' }}>
-                    <button 
-                      onClick={() => alert(`Room ${item.room} marked as Clean and Ready for Inspection!`)}
-                      style={{
-                        padding: '6px 14px',
-                        backgroundColor: '#D4F05B',
-                        color: '#0F172A',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: '800',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      ✓ Mark Clean & Inspected
-                    </button>
-                    <button 
-                      onClick={() => alert(`Housekeeper dispatched to Room ${item.room}!`)}
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: '#FFFFFF',
-                        border: '1px solid #CBD5E1',
-                        color: '#334155',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Notify Attendant
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )}

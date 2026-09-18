@@ -1,0 +1,193 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "The Grand Azure - Hotel Management System (HMS) API",
+    "description": "Enterprise-grade, domain-modular Hotel Management System REST API specification adhering to HFTP Uniform System of Accounts for the Lodging Industry (USALI).",
+    "version": "1.0.0",
+    "contact": {
+      "name": "The Grand Azure Engineering",
+      "email": "dev@grandazure.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api",
+      "description": "Local Development Server"
+    },
+    {
+      "url": "https://api.grandazure.com/api",
+      "description": "Cloud Production Gateway"
+    }
+  ],
+  "tags": [
+    { "name": "System", "description": "Core connectivity, health checks, and test seeding" },
+    { "name": "Identity & RBAC", "description": "User authentication, role-based access control, and user provisioning" },
+    { "name": "Rooms", "description": "Room availability, cleaning status, and room matrix" },
+    { "name": "Reservations", "description": "Multi-night booking engine, KYC ingestion, and check-in/out" },
+    { "name": "Dynamic Pricing", "description": "Occupancy surge calculations and seasonal rate rules" },
+    { "name": "Folio & Billing", "description": "Unified guest folios, dual-slab GST calculations, and payment gateways" },
+    { "name": "POS & Kitchen", "description": "Touch restaurant orders, Kitchen Display System (KDS), and room billing" },
+    { "name": "Housekeeping", "description": "Room cleaning turnover, inspections, and maintenance work orders" },
+    { "name": "Inventory", "description": "Stock ledger, threshold depletion alerts, and restocking" },
+    { "name": "Workforce", "description": "Staff duty rosters, biometric attendance, and leave requests" },
+    { "name": "CRM & Loyalty", "description": "Guest experience surveys, NPS metrics, and tiered loyalty rewards" },
+    { "name": "OTA & Audit", "description": "2-way OTA distribution sync and immutable security audit logs" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Service health check and service registry status",
+        "responses": {
+          "200": {
+            "description": "Service is healthy and ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "healthy" },
+                    "version": { "type": "string", "example": "1.0.0" },
+                    "database": { "type": "string", "example": "PostgreSQL-Modular" },
+                    "timestamp": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Live Lodgify hospitality analytics and occupancy KPIs",
+        "responses": {
+          "200": { "description": "Dashboard KPI payload" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Identity & RBAC"],
+        "summary": "Authenticate system user credentials",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string", "example": "admin" },
+                  "password": { "type": "string", "example": "admin123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Authentication successful" },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/users": {
+      "post": {
+        "tags": ["Identity & RBAC"],
+        "summary": "Provision new staff account with designated role",
+        "responses": {
+          "201": { "description": "User created successfully" },
+          "400": { "description": "Username already exists or invalid role" }
+        }
+      }
+    },
+    "/rooms": {
+      "get": {
+        "tags": ["Rooms"],
+        "summary": "List all hotel rooms and operational statuses",
+        "responses": {
+          "200": { "description": "Array of room objects" }
+        }
+      }
+    },
+    "/reservations": {
+      "get": {
+        "tags": ["Reservations"],
+        "summary": "List reservations with filtering",
+        "responses": { "200": { "description": "Reservation list" } }
+      },
+      "post": {
+        "tags": ["Reservations"],
+        "summary": "Create new reservation with KYC validation",
+        "responses": { "201": { "description": "Reservation confirmed and folio initialized" } }
+      }
+    },
+    "/reservations/{id}/checkin": {
+      "post": {
+        "tags": ["Reservations"],
+        "summary": "Front desk guest check-in",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Guest checked in, room marked Occupied" } }
+      }
+    },
+    "/reservations/{id}/checkout": {
+      "post": {
+        "tags": ["Reservations"],
+        "summary": "Front desk guest checkout and housekeeping dispatch",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Guest checked out, room marked Dirty" } }
+      }
+    },
+    "/folios": {
+      "get": {
+        "tags": ["Folio & Billing"],
+        "summary": "List guest folios and ledger balances",
+        "responses": { "200": { "description": "Folio collection" } }
+      }
+    },
+    "/folios/{id}/pay": {
+      "post": {
+        "tags": ["Folio & Billing"],
+        "summary": "Process payment settlement against folio",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Folio settled, balance updated to 0" } }
+      }
+    },
+    "/pos/orders": {
+      "post": {
+        "tags": ["POS & Kitchen"],
+        "summary": "Place restaurant or room service order",
+        "responses": { "201": { "description": "Order submitted and routed to KDS" } }
+      }
+    },
+    "/housekeeping/tasks": {
+      "get": {
+        "tags": ["Housekeeping"],
+        "summary": "List all active housekeeping tasks",
+        "responses": { "200": { "description": "Task list" } }
+      }
+    },
+    "/maintenance": {
+      "post": {
+        "tags": ["Housekeeping"],
+        "summary": "Create technician maintenance work order",
+        "responses": { "201": { "description": "Work order created" } }
+      }
+    },
+    "/inventory": {
+      "get": {
+        "tags": ["Inventory"],
+        "summary": "List all inventory stock balances",
+        "responses": { "200": { "description": "Stock balances list" } }
+      }
+    },
+    "/ota/sync": {
+      "post": {
+        "tags": ["OTA & Audit"],
+        "summary": "Broadcast 2-way rate parity and room inventory across OTA channels",
+        "responses": { "200": { "description": "Channels synchronized" } }
+      }
+    }
+  }
+}

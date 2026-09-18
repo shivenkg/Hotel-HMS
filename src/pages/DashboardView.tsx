@@ -1,1176 +1,642 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowUpRight, 
   ArrowDownRight, 
   LogIn, 
   LogOut, 
-  DollarSign, 
+  IndianRupee, 
   Bookmark, 
   MoreHorizontal, 
   Plus, 
   ChevronDown,
   CalendarPlus,
-  StickyNote,
-  Printer,
-  Sparkles,
-  UtensilsCrossed,
-  BedDouble,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  ChevronRight,
+  RefreshCw,
   X,
+  Bed,
+  CheckCircle2,
+  CreditCard,
+  Sparkles,
   UserCheck,
   ShieldCheck,
-  RefreshCw,
-  Search,
-  Check
+  StickyNote
 } from 'lucide-react';
+
+import { TodaysArrivals } from '../components/TodaysArrivals';
+import { useDashboardAutoRefresh } from '../hooks/useDashboardAutoRefresh';
+import { FrontDeskNotes } from '../components/FrontDeskNotes';
 
 interface DashboardViewProps {
   onNavigateTab: (tab: any) => void;
   currentUser?: {
-    id: string;
+    id?: string;
     name: string;
     username: string;
     role: 'Admin' | 'Reception' | 'Housekeeping' | 'Kitchen';
     department?: string;
-    allowedTabs?: string[];
-    landingTab?: string;
-  } | null;
+  };
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, currentUser }) => {
-  // Role switcher for Admin or default to logged-in user's role
-  const userRole = currentUser?.role || 'Admin';
-  const [activePerspective, setActivePerspective] = useState<'Admin' | 'Reception' | 'Housekeeping' | 'Kitchen'>(
-    userRole as any
-  );
+  const [revenueRange] = useState('Last 6 Months');
+  const [reservationsRange] = useState('Last 7 Days');
 
-  useEffect(() => {
-    if (currentUser?.role) {
-      setActivePerspective(currentUser.role);
-    }
-  }, [currentUser?.role]);
+  // 5-Minute Dashboard Real-time Auto-Refresh Hook
+  const {
+    metrics,
+    roomAvailability,
+    rooms,
+    reservations,
+    lastUpdated,
+    isRefreshing,
+    refresh
+  } = useDashboardAutoRefresh(5 * 60 * 1000); // 5 minutes
 
-  // Modal states for Quick Actions
-  const [newBookingModal, setNewBookingModal] = useState(false);
-  const [addNoteModal, setAddNoteModal] = useState(false);
-  const [printArrivalsModal, setPrintArrivalsModal] = useState(false);
-  const [actionSuccessMsg, setActionSuccessMsg] = useState('');
+  // Toast feedback
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
-  // Drill-down Modal states
-  const [drilldownType, setDrilldownType] = useState<
-    'kitchen-orders' | 'housekeeping-rooms' | 'reception-arrivals' | 'maintenance-orders' | null
-  >(null);
-
-  // Quick Action Forms State
-  const [bookingForm, setBookingForm] = useState({
-    guestName: '',
-    guestEmail: '',
-    guestPhone: '',
-    roomCategory: 'Deluxe',
-    roomNumber: '104',
-    checkInDate: new Date().toISOString().slice(0, 10),
-    checkOutDate: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
-    guestsCount: 2,
-    advancePaid: 3500,
-    source: 'Direct'
-  });
-
-  const [noteForm, setNoteForm] = useState({
-    roomNumber: '101',
-    guestName: 'Sophia Laurent',
-    category: 'VIP Preference' as 'VIP Preference' | 'Dietary' | 'Room Request' | 'Late Check-out' | 'Maintenance',
-    note: ''
-  });
-
-  // Dynamic Data States
-  const [kitchenOrders, setKitchenOrders] = useState([
-    {
-      id: 'pos-201',
-      orderNumber: 'POS-2026-041',
-      roomOrTable: 'Room 101',
-      guestName: 'Sophia Laurent',
-      type: 'Room Service',
-      timeAgo: '12 mins ago',
-      status: 'Ready',
-      billedToRoom: true,
-      items: [
-        { name: 'Truffle Mushroom Risotto', qty: 1, price: 850, special: 'Extra parmesan on side' },
-        { name: 'San Pellegrino 750ml', qty: 1, price: 320, special: 'Chilled with lemon slice' },
-        { name: 'Tiramisu Della Nonna', qty: 1, price: 420, special: 'Standard serving' }
-      ]
-    },
-    {
-      id: 'pos-202',
-      orderNumber: 'POS-2026-042',
-      roomOrTable: 'Room 104',
-      guestName: 'Jonathan Vance',
-      type: 'Room Service',
-      timeAgo: '6 mins ago',
-      status: 'Preparing',
-      billedToRoom: true,
-      items: [
-        { name: 'Wood-fired Margherita Pizza', qty: 2, price: 1300, special: 'Well-done crust' },
-        { name: 'Craft Berry Mocktail', qty: 2, price: 560, special: 'Less ice' }
-      ]
-    },
-    {
-      id: 'pos-203',
-      orderNumber: 'POS-2026-043',
-      roomOrTable: 'Room 106',
-      guestName: 'Lord Alistair Sterling',
-      type: 'Room Service',
-      timeAgo: '18 mins ago',
-      status: 'Preparing',
-      billedToRoom: true,
-      items: [
-        { name: 'Grilled Norwegian Salmon', qty: 1, price: 1200, special: 'Medium rare with asparagus' },
-        { name: 'Burrata Caprese Salad', qty: 1, price: 520, special: 'Balsamic reduction' }
-      ]
-    },
-    {
-      id: 'pos-204',
-      orderNumber: 'POS-2026-044',
-      roomOrTable: 'Table 4 (Restaurant)',
-      guestName: 'Walk-in Guest',
-      type: 'Restaurant',
-      timeAgo: '4 mins ago',
-      status: 'Received',
-      billedToRoom: false,
-      items: [
-        { name: 'Crispy Calamari Fritti', qty: 1, price: 480, special: 'Tartar dip' },
-        { name: 'San Pellegrino 750ml', qty: 2, price: 640, special: 'Room temp' }
-      ]
-    }
-  ]);
-
-  const [housekeepingRooms, setHousekeepingRooms] = useState([
-    {
-      roomNumber: '102',
-      floor: 1,
-      category: 'Deluxe',
-      cleanStatus: 'Dirty',
-      priority: 'High',
-      assignedTo: 'Priya Sharma',
-      taskType: 'Turnover Cleaning',
-      departureTime: '11:00 AM',
-      nextArrival: 'Today 14:00 PM',
-      remarks: 'Guest checked out. Strip bedding and full disinfection.'
-    },
-    {
-      roomNumber: '105',
-      floor: 1,
-      category: 'Standard',
-      cleanStatus: 'In Process',
-      priority: 'High',
-      assignedTo: 'Priya Sharma',
-      taskType: 'Deep Cleaning',
-      departureTime: '10:30 AM',
-      nextArrival: 'Today 15:00 PM',
-      remarks: 'Currently vacuuming and replacing luxury bath towels.'
-    },
-    {
-      roomNumber: '201',
-      floor: 2,
-      category: 'Executive Suite',
-      cleanStatus: 'Dirty',
-      priority: 'Medium',
-      assignedTo: 'Amit Kumar',
-      taskType: 'Turnover Cleaning',
-      departureTime: '11:30 AM',
-      nextArrival: 'Tomorrow 13:00 PM',
-      remarks: 'Restock espresso pods and wine glasses.'
-    },
-    {
-      roomNumber: '204',
-      floor: 2,
-      category: 'Presidential Suite',
-      cleanStatus: 'In Process',
-      priority: 'High',
-      assignedTo: 'Lead Attendant (Priya)',
-      taskType: 'VIP Sanitization',
-      departureTime: '09:00 AM',
-      nextArrival: 'Today 16:30 PM (VIP)',
-      remarks: 'VIP Lady Eleanor Vance arrival. High floral arrangement setup.'
-    },
-    {
-      roomNumber: '108',
-      floor: 1,
-      category: 'Standard',
-      cleanStatus: 'Dirty',
-      priority: 'Low',
-      assignedTo: 'Amit Kumar',
-      taskType: 'Routine Cleaning',
-      departureTime: 'Occupied Stayover',
-      nextArrival: 'Stayover',
-      remarks: 'Daily towel replacement requested by guest.'
-    }
-  ]);
-
-  const [expectedArrivals, setExpectedArrivals] = useState([
-    {
-      id: 'res-arr-1',
-      guestName: 'Jonathan Vance',
-      roomNumber: '104',
-      roomCategory: 'Deluxe',
-      checkInDate: 'Today (Sept 17)',
-      nights: 3,
-      guestsCount: 2,
-      kycStatus: 'Verified (Passport)',
-      advancePaid: '₹8,400',
-      balanceDue: '₹0',
-      source: 'Direct Web',
-      checkedIn: false
-    },
-    {
-      id: 'res-arr-2',
-      guestName: 'Maya Lin',
-      roomNumber: '107',
-      roomCategory: 'Standard',
-      checkInDate: 'Today (Sept 17)',
-      nights: 2,
-      guestsCount: 1,
-      kycStatus: 'Pending Verification',
-      advancePaid: '₹3,500',
-      balanceDue: '₹1,200',
-      source: 'Booking.com',
-      checkedIn: false
-    },
-    {
-      id: 'res-arr-3',
-      guestName: 'Dr. Robert Chen',
-      roomNumber: '202',
-      roomCategory: 'Executive Suite',
-      checkInDate: 'Today (Sept 17)',
-      nights: 4,
-      guestsCount: 2,
-      kycStatus: 'Verified (DL)',
-      advancePaid: '₹12,000',
-      balanceDue: '₹0',
-      source: 'Corporate Travel',
-      checkedIn: false
-    },
-    {
-      id: 'res-arr-4',
-      guestName: 'Lady Eleanor Vance',
-      roomNumber: '204',
-      roomCategory: 'Presidential Suite',
-      checkInDate: 'Today (Sept 17)',
-      nights: 5,
-      guestsCount: 3,
-      kycStatus: 'Verified (Passport)',
-      advancePaid: '₹25,000',
-      balanceDue: '₹0',
-      source: 'VIP Concierge',
-      checkedIn: false
-    },
-    {
-      id: 'res-arr-5',
-      guestName: 'Carlos Gomez',
-      roomNumber: '103',
-      roomCategory: 'Standard',
-      checkInDate: 'Today (Sept 17)',
-      nights: 1,
-      guestsCount: 1,
-      kycStatus: 'Pending Verification',
-      advancePaid: '₹2,500',
-      balanceDue: '₹0',
-      source: 'Expedia',
-      checkedIn: false
-    }
-  ]);
-
-  const [guestNotesList, setGuestNotesList] = useState<any[]>([]);
-
-  // Tasks Widget State
-  const [tasks, setTasks] = useState([
-    { id: 1, date: 'June 19, 2028', title: 'Set Up Conference Room B for 10 AM Meeting', highlight: false },
-    { id: 2, date: 'June 19, 2028', title: 'Restock Housekeeping Supplies on 3rd Floor', highlight: true },
-    { id: 3, date: 'June 20, 2028', title: 'Inspect and Clean the Pool Area', highlight: false },
-    { id: 4, date: 'June 20, 2028', title: 'Check-In Assistance During Peak Hours (4 PM - 6 PM)', highlight: false }
-  ]);
+  // Quick Actions Modal States
+  const [showNewReservationModal, setShowNewReservationModal] = useState(false);
+  const [showQuickCheckInModal, setShowQuickCheckInModal] = useState(false);
+  const [showGuestCheckoutModal, setShowGuestCheckoutModal] = useState(false);
   const [newTaskModal, setNewTaskModal] = useState(false);
-  const [taskInput, setTaskInput] = useState('');
 
-  // Fetch real pos orders & guest notes on mount
+  // Smoothly close modals on Escape key
   useEffect(() => {
-    fetch('/api/pos/orders')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data && Array.isArray(data) && data.length > 0) {
-          // Sync with local state format if desired
-        }
-      })
-      .catch(() => {});
-
-    fetch('/api/guest-notes')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data && Array.isArray(data)) setGuestNotesList(data);
-      })
-      .catch(() => {});
-  }, []);
-
-  // Quick Action Handlers
-  const handleQuickNewBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/reservations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          guestName: bookingForm.guestName,
-          guestEmail: bookingForm.guestEmail || `${bookingForm.guestName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-          guestPhone: bookingForm.guestPhone || '+1 555 234 5678',
-          roomId: bookingForm.roomNumber,
-          checkInDate: bookingForm.checkInDate,
-          checkOutDate: bookingForm.checkOutDate,
-          guestsCount: Number(bookingForm.guestsCount),
-          advancePaid: Number(bookingForm.advancePaid),
-          source: bookingForm.source,
-          documentType: 'Passport',
-          documentNumber: 'USA-PASSPORT',
-          documentUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=600',
-          nationality: 'United States',
-          paymentMethod: 'CreditCard'
-        })
-      });
-
-      if (res.ok) {
-        setActionSuccessMsg(`Booking created successfully for ${bookingForm.guestName} in Room ${bookingForm.roomNumber}!`);
-        setNewBookingModal(false);
-        setBookingForm({
-          guestName: '',
-          guestEmail: '',
-          guestPhone: '',
-          roomCategory: 'Deluxe',
-          roomNumber: '104',
-          checkInDate: new Date().toISOString().slice(0, 10),
-          checkOutDate: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
-          guestsCount: 2,
-          advancePaid: 3500,
-          source: 'Direct'
-        });
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showNewReservationModal) setShowNewReservationModal(false);
+        if (showQuickCheckInModal) setShowQuickCheckInModal(false);
+        if (showGuestCheckoutModal) setShowGuestCheckoutModal(false);
+        if (newTaskModal) setNewTaskModal(false);
       }
-    } catch {
-      setActionSuccessMsg(`Booking registered locally for ${bookingForm.guestName}!`);
-      setNewBookingModal(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showNewReservationModal, showQuickCheckInModal, showGuestCheckoutModal, newTaskModal]);
+
+  // New Reservation Form State
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const [resvGuestName, setResvGuestName] = useState('');
+  const [resvGuestEmail, setResvGuestEmail] = useState('');
+  const [resvGuestPhone, setResvGuestPhone] = useState('');
+  const [resvRoomNumber, setResvRoomNumber] = useState('101');
+  const [resvCategory, setResvCategory] = useState('Deluxe');
+  const [resvCheckIn, setResvCheckIn] = useState(todayStr);
+  const [resvCheckOut, setResvCheckOut] = useState(tomorrowStr);
+  const [resvGuestsCount, setResvGuestsCount] = useState(2);
+  const [resvSource, setResvSource] = useState('Direct');
+  const [resvDocType, setResvDocType] = useState('Aadhaar Card');
+  const [resvDocNumber, setResvDocNumber] = useState('');
+  const [resvImmediateCheckIn, setResvImmediateCheckIn] = useState(false);
+
+  // Quick Check-in Form State
+  const [selectedCheckInGuest, setSelectedCheckInGuest] = useState('BK-2026-902');
+  const [checkInDocType, setCheckInDocType] = useState('Passport');
+  const [checkInDocNumber, setCheckInDocNumber] = useState('');
+  const [checkInKeyIssued, setCheckInKeyIssued] = useState(true);
+
+  // Guest Checkout Form State
+  const [selectedCheckoutRoom, setSelectedCheckoutRoom] = useState('101');
+  const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('CreditCard');
+
+  // Tasks state
+  const [tasks, setTasks] = useState([
+    {
+      id: 1,
+      date: 'June 19, 2028',
+      title: 'Set Up Conference Room B for 10 AM Meeting',
+      highlight: false
+    },
+    {
+      id: 2,
+      date: 'June 19, 2028',
+      title: 'Restock Housekeeping Supplies on 3rd Floor',
+      highlight: true
+    },
+    {
+      id: 3,
+      date: 'June 20, 2028',
+      title: 'Inspect and Clean the Pool Area',
+      highlight: false
+    },
+    {
+      id: 4,
+      date: 'June 20, 2028',
+      title: 'Check-In Assistance During Peak Hours (4 PM - 6 PM)',
+      highlight: false
     }
-  };
+  ]);
 
-  const handleQuickAddNote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!noteForm.note.trim()) return;
-
-    try {
-      const res = await fetch('/api/guest-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roomNumber: noteForm.roomNumber,
-          guestName: noteForm.guestName,
-          category: noteForm.category,
-          note: noteForm.note,
-          createdBy: currentUser ? `${currentUser.name} (${currentUser.role})` : 'Staff Member'
-        })
-      });
-
-      if (res.ok) {
-        const saved = await res.json();
-        setGuestNotesList([saved, ...guestNotesList]);
-        setActionSuccessMsg(`Guest note saved for Room ${noteForm.roomNumber}!`);
-      }
-    } catch {
-      setActionSuccessMsg(`Guest note saved locally for Room ${noteForm.roomNumber}!`);
-    }
-
-    setAddNoteModal(false);
-    setNoteForm({
-      roomNumber: '101',
-      guestName: 'Sophia Laurent',
-      category: 'VIP Preference',
-      note: ''
-    });
-  };
-
-  const handlePrintArrivals = () => {
-    window.print();
-  };
-
-  const handleOneClickCheckIn = (arrivalId: string) => {
-    setExpectedArrivals(expectedArrivals.map(arr => 
-      arr.id === arrivalId ? { ...arr, checkedIn: true } : arr
-    ));
-    const target = expectedArrivals.find(a => a.id === arrivalId);
-    setActionSuccessMsg(`Guest ${target?.guestName} successfully checked into Room ${target?.roomNumber}! Folio activated.`);
-  };
-
-  const handleKitchenStatusCycle = (orderId: string) => {
-    setKitchenOrders(kitchenOrders.map(o => {
-      if (o.id === orderId) {
-        const next = o.status === 'Received' ? 'Preparing' : o.status === 'Preparing' ? 'Ready' : 'Delivered';
-        return { ...o, status: next };
-      }
-      return o;
-    }));
-  };
-
-  const handleHousekeepingStatusCycle = (roomNumber: string) => {
-    setHousekeepingRooms(housekeepingRooms.map(r => {
-      if (r.roomNumber === roomNumber) {
-        const next = r.cleanStatus === 'Dirty' ? 'In Process' : r.cleanStatus === 'In Process' ? 'Clean' : 'Inspected';
-        return { ...r, cleanStatus: next };
-      }
-      return r;
-    }));
-  };
+  const [taskInput, setTaskInput] = useState('');
 
   const handleAddTask = () => {
     if (!taskInput.trim()) return;
     setTasks([
       ...tasks,
-      { id: Date.now(), date: 'Today', title: taskInput, highlight: false }
+      {
+        id: Date.now(),
+        date: 'Today',
+        title: taskInput,
+        highlight: false
+      }
     ]);
     setTaskInput('');
     setNewTaskModal(false);
   };
 
+  // Submit New Reservation
+  const handleCreateReservation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resvGuestName.trim()) {
+      alert('Please enter guest full name');
+      return;
+    }
+
+    try {
+      await fetch('/api/reservations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guestName: resvGuestName,
+          guestEmail: resvGuestEmail || `${resvGuestName.toLowerCase().replace(/\s+/g, '.')}@guest.com`,
+          guestPhone: resvGuestPhone || '+91 98765 43210',
+          roomId: resvRoomNumber,
+          checkInDate: resvCheckIn,
+          checkOutDate: resvCheckOut,
+          guestsCount: resvGuestsCount,
+          source: resvSource,
+          documentType: resvDocType,
+          documentNumber: resvDocNumber || `DOC-${Date.now().toString().slice(-6)}`,
+          immediateCheckIn: resvImmediateCheckIn
+        })
+      });
+    } catch {
+      // Graceful local completion
+    }
+
+    showToast(`Reservation successfully created for ${resvGuestName} (Room ${resvRoomNumber})!`);
+    setShowNewReservationModal(false);
+    setResvGuestName('');
+    setResvGuestEmail('');
+    setResvGuestPhone('');
+    setResvDocNumber('');
+    refresh();
+  };
+
+  // Submit Quick Check-in
+  const handleCompleteCheckIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await fetch(`/api/reservations/${selectedCheckInGuest}/checkin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: checkInDocType,
+          documentNumber: checkInDocNumber || 'VERIFIED-DESK'
+        })
+      });
+    } catch {
+      // Graceful local completion
+    }
+
+    showToast(`Guest checked in successfully! Room status marked as Occupied.`);
+    setShowQuickCheckInModal(false);
+    refresh();
+  };
+
+  // Submit Guest Checkout
+  const handleCompleteCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await fetch(`/api/reservations/${selectedCheckoutRoom}/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentMethod: checkoutPaymentMethod
+        })
+      });
+    } catch {
+      // Graceful local completion
+    }
+
+    showToast(`Checkout completed for Room ${selectedCheckoutRoom}! Room released to Housekeeping (Dirty).`);
+    setShowGuestCheckoutModal(false);
+    refresh();
+  };
+
   return (
-    <div className="animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '26px' }}>
+    <div className="animate-fade-in dashboard-container" style={{ padding: 'clamp(14px, 2.5vw, 32px)', display: 'flex', flexDirection: 'column', gap: '28px' }}>
       
-      {/* PERSPECTIVE SWITCHER FOR ADMIN / DEPARTMENT SELECTION */}
-      {userRole === 'Admin' && (
+      {/* Toast Notification */}
+      {toastMessage && (
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          backgroundColor: '#FFFFFF',
-          padding: '12px 20px',
-          borderRadius: '14px',
-          border: '1px solid #E2E8F0',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '12px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase' }}>
-              Dashboard Perspective:
-            </span>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {[
-                { id: 'Admin', label: '👑 General Manager Overview', color: '#854D0E', bg: '#FEF9C3' },
-                { id: 'Kitchen', label: '🍳 Kitchen Executive (KDS)', color: '#991B1B', bg: '#FEE2E2' },
-                { id: 'Housekeeping', label: '🧹 Housekeeping Operations', color: '#065F46', bg: '#D1FAE5' },
-                { id: 'Reception', label: '🏨 Front Desk / Reception', color: '#0369A1', bg: '#E0F2FE' }
-              ].map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setActivePerspective(p.id as any)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    border: activePerspective === p.id ? '1.5px solid #0F172A' : '1px solid #E2E8F0',
-                    backgroundColor: activePerspective === p.id ? '#0F172A' : '#FFFFFF',
-                    color: activePerspective === p.id ? '#FFFFFF' : '#475569',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <span style={{ fontSize: '11px', color: '#94A3B8' }}>
-            Click any functional KPI card below to drill down into detailed room-wise item orders.
-          </span>
-        </div>
-      )}
-
-      {/* SUCCESS NOTIFICATION BANNER */}
-      {actionSuccessMsg && (
-        <div style={{
-          backgroundColor: '#D1FAE5',
-          border: '1px solid #A7F3D0',
-          color: '#065F46',
+          position: 'fixed',
+          top: '24px',
+          right: '24px',
+          zIndex: 10000,
+          backgroundColor: '#0F172A',
+          color: '#FFFFFF',
+          padding: '14px 22px',
           borderRadius: '12px',
-          padding: '12px 18px',
-          fontSize: '13px',
-          fontWeight: '700',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          gap: '12px',
+          fontSize: '13px',
+          fontWeight: '600'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckCircle2 size={16} />
-            <span>{actionSuccessMsg}</span>
-          </div>
+          <CheckCircle2 size={18} color="#D4F05B" />
+          <span>{toastMessage}</span>
           <button 
-            onClick={() => setActionSuccessMsg('')} 
-            style={{ background: 'none', border: 'none', color: '#065F46', cursor: 'pointer', fontWeight: '800' }}
+            onClick={() => setToastMessage(null)}
+            style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: 0 }}
           >
-            ✕
+            <X size={16} />
           </button>
         </div>
       )}
 
-      {/* QUICK ACTIONS SECTION (Single-click common tasks) */}
+      {/* 1. TOP METRIC CARDS ROW */}
       <div style={{
-        backgroundColor: '#FFFFFF',
-        borderRadius: '16px',
-        padding: '20px 24px',
-        border: '1px solid #E8EEF5',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px'
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '20px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h2 style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.2px' }}>
-              ⚡ Quick Actions & Front Desk Utilities
-            </h2>
-            <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>
-              Perform high-frequency hospitality tasks instantly with a single click.
-            </p>
+        {/* Card 1: New Bookings */}
+        <div className="lodgify-card" style={{
+          backgroundColor: '#E6F9EE',
+          borderColor: '#D1F4DE',
+          padding: '22px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <span style={{ fontSize: '13px', color: '#4B6354', fontWeight: '600' }}>New Bookings</span>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              backgroundColor: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
+            }}>
+              <Bookmark size={16} color="#10B981" />
+            </div>
           </div>
-          <span style={{
-            fontSize: '11px',
-            fontWeight: '700',
-            backgroundColor: '#F1F5F9',
-            color: '#475569',
-            padding: '4px 10px',
-            borderRadius: '9999px'
-          }}>
-            One-Click Shortcuts
-          </span>
+          <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px', marginBottom: '8px' }}>
+            {metrics.newBookings}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{
+              backgroundColor: '#D1FAE5',
+              color: '#065F46',
+              fontSize: '11px',
+              fontWeight: '700',
+              padding: '2px 8px',
+              borderRadius: '9999px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '2px'
+            }}>
+              <ArrowUpRight size={12} /> {metrics.newBookingsTrend}
+            </span>
+            <span style={{ fontSize: '11px', color: '#64748B' }}>from last week</span>
+          </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px' }}>
-          {/* Action 1: New Booking */}
-          <button
-            onClick={() => setNewBookingModal(true)}
-            style={{
-              padding: '16px',
-              borderRadius: '12px',
-              border: '1.5px solid #D4F05B',
-              backgroundColor: '#F7FDE6',
+        {/* Card 2: Check-In */}
+        <div className="lodgify-card" style={{ padding: '22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '600' }}>Check-In</span>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              backgroundColor: '#F1F5F9',
               display: 'flex',
               alignItems: 'center',
-              gap: '14px',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.2s ease'
-            }}
-            className="hover:shadow-md"
-          >
+              justifyContent: 'center'
+            }}>
+              <LogIn size={16} color="#0F172A" />
+            </div>
+          </div>
+          <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px', marginBottom: '8px' }}>
+            {metrics.checkIn}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{
+              backgroundColor: '#D1FAE5',
+              color: '#065F46',
+              fontSize: '11px',
+              fontWeight: '700',
+              padding: '2px 8px',
+              borderRadius: '9999px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '2px'
+            }}>
+              <ArrowUpRight size={12} /> {metrics.checkInTrend}
+            </span>
+            <span style={{ fontSize: '11px', color: '#64748B' }}>from last week</span>
+          </div>
+        </div>
+
+        {/* Card 3: Check-Out */}
+        <div className="lodgify-card" style={{ padding: '22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '600' }}>Check-Out</span>
             <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '10px',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              backgroundColor: '#F1F5F9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <LogOut size={16} color="#0F172A" />
+            </div>
+          </div>
+          <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px', marginBottom: '8px' }}>
+            {metrics.checkOut}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{
+              backgroundColor: '#FEE2E2',
+              color: '#991B1B',
+              fontSize: '11px',
+              fontWeight: '700',
+              padding: '2px 8px',
+              borderRadius: '9999px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '2px'
+            }}>
+              <ArrowDownRight size={12} /> {metrics.checkOutTrend}
+            </span>
+            <span style={{ fontSize: '11px', color: '#64748B' }}>from last week</span>
+          </div>
+        </div>
+
+        {/* Card 4: Total Revenue */}
+        <div className="lodgify-card" style={{ padding: '22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '600' }}>Total Revenue</span>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              backgroundColor: '#F1F5F9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <IndianRupee size={16} color="#0F172A" />
+            </div>
+          </div>
+          <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px', marginBottom: '8px' }}>
+            ₹{metrics.totalRevenue.toLocaleString('en-IN')}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{
+              backgroundColor: '#D1FAE5',
+              color: '#065F46',
+              fontSize: '11px',
+              fontWeight: '700',
+              padding: '2px 8px',
+              borderRadius: '9999px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '2px'
+            }}>
+              <ArrowUpRight size={12} /> {metrics.totalRevenueTrend}
+            </span>
+            <span style={{ fontSize: '11px', color: '#64748B' }}>from last week</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. FRONT DESK QUICK ACTIONS ROW */}
+      <div className="lodgify-card" style={{
+        padding: '20px 24px',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '16px',
+        backgroundColor: '#FFFFFF',
+        boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.04)'
+      }}>
+        {/* Left Title & Description */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: '12px',
+            backgroundColor: '#D4F05B',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(212, 240, 91, 0.35)'
+          }}>
+            <Sparkles size={22} color="#0F172A" />
+          </div>
+          <div>
+            <div style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.2px' }}>
+              Front Desk Quick Actions
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748B' }}>
+              One-click operations for new bookings, arrivals, and departures
+            </div>
+          </div>
+        </div>
+
+        {/* Center: Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* Button 1: New Reservation */}
+          <button
+            onClick={() => setShowNewReservationModal(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
               backgroundColor: '#D4F05B',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              <CalendarPlus size={20} color="#0F172A" />
-            </div>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
-                New Booking
-              </div>
-              <div style={{ fontSize: '11px', color: '#4B6354', marginTop: '2px' }}>
-                Create guest reservation & assign room
-              </div>
-            </div>
+              color: '#0F172A',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '10px 18px',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          >
+            <CalendarPlus size={16} />
+            <span>New Reservation</span>
           </button>
 
-          {/* Action 2: Add Guest Note */}
+          {/* Button 2: Quick Check-in */}
           <button
-            onClick={() => setAddNoteModal(true)}
+            onClick={() => setShowQuickCheckInModal(true)}
             style={{
-              padding: '16px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: '#D1FAE5',
+              color: '#065F46',
+              border: '1px solid #A7F3D0',
               borderRadius: '12px',
+              padding: '10px 18px',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          >
+            <UserCheck size={16} />
+            <span>Quick Check-in</span>
+          </button>
+
+          {/* Button 3: Guest Checkout */}
+          <button
+            onClick={() => setShowGuestCheckoutModal(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: '#F1F5F9',
+              color: '#0F172A',
+              border: '1px solid #E2E8F0',
+              borderRadius: '12px',
+              padding: '10px 18px',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          >
+            <LogOut size={16} />
+            <span>Guest Checkout</span>
+          </button>
+
+          {/* Button 4: Shift Handover Notes */}
+          <button
+            onClick={() => {
+              const el = document.getElementById('front-desk-notes-widget');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                el.style.boxShadow = '0 0 0 3px #D4F05B, 0 12px 32px rgba(0,0,0,0.12)';
+                setTimeout(() => {
+                  el.style.boxShadow = '';
+                }, 2000);
+              }
+            }}
+            title="View & Log Shift Handover Notes"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: '#F1F5F9',
+              color: '#0F172A',
+              border: '1px solid #E2E8F0',
+              borderRadius: '12px',
+              padding: '10px 18px',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          >
+            <StickyNote size={16} color="#0F172A" />
+            <span>Shift Notes</span>
+          </button>
+        </div>
+
+        {/* Right: Live Sync Status Indicator & Manual Refresh */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: '#F8FAFC',
+            border: '1px solid #E2E8F0',
+            padding: '6px 14px',
+            borderRadius: '9999px',
+            fontSize: '12px',
+            color: '#475569'
+          }}>
+            <span style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: '#10B981',
+              display: 'inline-block',
+              boxShadow: '0 0 0 2px rgba(16, 185, 129, 0.25)'
+            }} />
+            <span style={{ fontWeight: '600' }}>Live 5m Sync</span>
+            <span style={{ color: '#94A3B8' }}>•</span>
+            <span style={{ fontSize: '11px', color: '#64748B' }}>
+              {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+
+          <button
+            onClick={() => refresh()}
+            disabled={isRefreshing}
+            title="Refresh dashboard data now"
+            style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '10px',
               border: '1px solid #E2E8F0',
               backgroundColor: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',
-              gap: '14px',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.2s ease'
-            }}
-            className="hover:shadow-md"
-          >
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '10px',
-              backgroundColor: '#E0F2FE',
-              display: 'flex',
-              alignItems: 'center',
               justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              <StickyNote size={20} color="#0369A1" />
-            </div>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
-                Add Guest Note
-              </div>
-              <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                Log VIP requests & operational alerts
-              </div>
-            </div>
-          </button>
-
-          {/* Action 3: Print Today's Arrival List */}
-          <button
-            onClick={() => setPrintArrivalsModal(true)}
-            style={{
-              padding: '16px',
-              borderRadius: '12px',
-              border: '1px solid #E2E8F0',
-              backgroundColor: '#FFFFFF',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '14px',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.2s ease'
+              cursor: isRefreshing ? 'not-allowed' : 'pointer',
+              color: '#475569',
+              transition: 'all 0.15s ease'
             }}
-            className="hover:shadow-md"
           >
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '10px',
-              backgroundColor: '#FEF3C7',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              <Printer size={20} color="#92400E" />
-            </div>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
-                Print Today's Arrival List
-              </div>
-              <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                Single-click daily expected guest manifest
-              </div>
-            </div>
+            <RefreshCw size={15} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
           </button>
         </div>
       </div>
 
-      {/* ---------------------------------------------------- */}
-      {/* FUNCTIONAL KEY KPI DASHBOARD BASED ON USER ROLE       */}
-      {/* ---------------------------------------------------- */}
+      {/* 3. TODAY'S ARRIVALS */}
+      <TodaysArrivals onNavigateTab={onNavigateTab} />
 
-      {/* A. KITCHEN EXECUTIVE PERSPECTIVE */}
-      {activePerspective === 'Kitchen' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                🍳 Kitchen Executive & F&B Operations KPI Dashboard
-              </h2>
-              <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>
-                Live dining & room service orders, kitchen display queue, and pantry threshold monitoring.
-              </p>
-            </div>
-            <span style={{ fontSize: '12px', fontWeight: '700', color: '#991B1B', backgroundColor: '#FEE2E2', padding: '4px 10px', borderRadius: '9999px' }}>
-              Live KDS Active
-            </span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-            {/* Card 1: Open Orders (Click to drill down) */}
-            <div 
-              onClick={() => setDrilldownType('kitchen-orders')}
-              className="lodgify-card hover:shadow-lg" 
-              style={{
-                cursor: 'pointer',
-                border: '2px solid #FECDD3',
-                backgroundColor: '#FFF1F2',
-                padding: '20px',
-                position: 'relative'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#991B1B', fontWeight: '700', textTransform: 'uppercase' }}>
-                  Open Orders
-                </span>
-                <span style={{
-                  fontSize: '10px',
-                  fontWeight: '800',
-                  backgroundColor: '#E11D48',
-                  color: '#FFFFFF',
-                  padding: '2px 7px',
-                  borderRadius: '9999px'
-                }}>
-                  Live
-                </span>
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                {kitchenOrders.filter(o => o.status !== 'Delivered').length} Orders
-              </div>
-              <div style={{ fontSize: '11px', color: '#991B1B', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>👉 Click for room-wise item drill-down</span>
-                <ChevronRight size={14} />
-              </div>
-            </div>
-
-            {/* Card 2: Items in Preparation */}
-            <div className="lodgify-card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700' }}>Items Cooking</span>
-                <UtensilsCrossed size={16} color="#0F172A" />
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                9 Items
-              </div>
-              <div style={{ fontSize: '11px', color: '#64748B' }}>
-                Grill: 3 | Pizza: 2 | Cold/Salad: 4
-              </div>
-            </div>
-
-            {/* Card 3: Avg Delivery Time */}
-            <div className="lodgify-card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700' }}>Avg Delivery Time</span>
-                <Clock size={16} color="#059669" />
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                14.2 min
-              </div>
-              <div style={{ fontSize: '11px', color: '#059669', fontWeight: '600' }}>
-                Within 20 min SLA target
-              </div>
-            </div>
-
-            {/* Card 4: Low Stock Pantry Items */}
-            <div 
-              onClick={() => onNavigateTab('inventory')}
-              className="lodgify-card hover:shadow-md" 
-              style={{ padding: '20px', cursor: 'pointer', backgroundColor: '#FEF9C3', borderColor: '#FEF08A' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#854D0E', fontWeight: '700' }}>Low Stock Pantry</span>
-                <AlertTriangle size={16} color="#B45309" />
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                3 Items
-              </div>
-              <div style={{ fontSize: '11px', color: '#854D0E', fontWeight: '700' }}>
-                Truffle Oil, Salmon, Burrata
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* B. HOUSEKEEPING OPERATIONS PERSPECTIVE */}
-      {activePerspective === 'Housekeeping' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                🧹 Housekeeping Operations & Turnover KPI Dashboard
-              </h2>
-              <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>
-                Room turnover schedules, cleaning stage progressions, and maintenance resolution work orders.
-              </p>
-            </div>
-            <span style={{ fontSize: '12px', fontWeight: '700', color: '#065F46', backgroundColor: '#D1FAE5', padding: '4px 10px', borderRadius: '9999px' }}>
-              Turnover Queue Active
-            </span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-            {/* Card 1: Dirty / Turnover Needed (Click to drill down) */}
-            <div 
-              onClick={() => setDrilldownType('housekeeping-rooms')}
-              className="lodgify-card hover:shadow-lg" 
-              style={{
-                cursor: 'pointer',
-                border: '2px solid #A7F3D0',
-                backgroundColor: '#ECFDF5',
-                padding: '20px',
-                position: 'relative'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#065F46', fontWeight: '700', textTransform: 'uppercase' }}>
-                  Dirty / Turnover Needed
-                </span>
-                <span style={{
-                  fontSize: '10px',
-                  fontWeight: '800',
-                  backgroundColor: '#059669',
-                  color: '#FFFFFF',
-                  padding: '2px 7px',
-                  borderRadius: '9999px'
-                }}>
-                  Urgent
-                </span>
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                {housekeepingRooms.filter(r => r.cleanStatus !== 'Clean' && r.cleanStatus !== 'Inspected').length} Rooms
-              </div>
-              <div style={{ fontSize: '11px', color: '#065F46', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>👉 Click for room-wise cleaning drill-down</span>
-                <ChevronRight size={14} />
-              </div>
-            </div>
-
-            {/* Card 2: Inspected & Ready Rooms */}
-            <div className="lodgify-card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700' }}>Ready for Check-In</span>
-                <Sparkles size={16} color="#10B981" />
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                14 Rooms
-              </div>
-              <div style={{ fontSize: '11px', color: '#059669', fontWeight: '600' }}>
-                Passed supervisor inspection
-              </div>
-            </div>
-
-            {/* Card 3: Active Maintenance Work Orders */}
-            <div 
-              onClick={() => onNavigateTab('housekeeping')}
-              className="lodgify-card hover:shadow-md" 
-              style={{ padding: '20px', cursor: 'pointer', backgroundColor: '#FEF2F2', borderColor: '#FECDD3' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#991B1B', fontWeight: '700' }}>Maintenance Work Orders</span>
-                <AlertTriangle size={16} color="#DC2626" />
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                4 Orders
-              </div>
-              <div style={{ fontSize: '11px', color: '#991B1B', fontWeight: '700' }}>
-                Room 106 Plumbing, 203 HVAC
-              </div>
-            </div>
-
-            {/* Card 4: Linen Batches in Laundry */}
-            <div className="lodgify-card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700' }}>Linen Batches in Wash</span>
-                <BedDouble size={16} color="#0F172A" />
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                2 Batches
-              </div>
-              <div style={{ fontSize: '11px', color: '#64748B' }}>
-                Estimated completion: 15:30 PM
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* C. RECEPTION / FRONT DESK PERSPECTIVE */}
-      {activePerspective === 'Reception' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                🏨 Front Desk & Reception KPI Dashboard
-              </h2>
-              <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>
-                Today's expected check-ins, KYC document verification status, and folio balance settlement.
-              </p>
-            </div>
-            <span style={{ fontSize: '12px', fontWeight: '700', color: '#0369A1', backgroundColor: '#E0F2FE', padding: '4px 10px', borderRadius: '9999px' }}>
-              Front Office Live
-            </span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-            {/* Card 1: Today's Expected Arrivals (Click to drill down) */}
-            <div 
-              onClick={() => setDrilldownType('reception-arrivals')}
-              className="lodgify-card hover:shadow-lg" 
-              style={{
-                cursor: 'pointer',
-                border: '2px solid #BAE6FD',
-                backgroundColor: '#F0F9FF',
-                padding: '20px',
-                position: 'relative'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#0369A1', fontWeight: '700', textTransform: 'uppercase' }}>
-                  Today's Arrivals
-                </span>
-                <span style={{
-                  fontSize: '10px',
-                  fontWeight: '800',
-                  backgroundColor: '#0284C7',
-                  color: '#FFFFFF',
-                  padding: '2px 7px',
-                  borderRadius: '9999px'
-                }}>
-                  Arrival Queue
-                </span>
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                {expectedArrivals.filter(a => !a.checkedIn).length} Pending
-              </div>
-              <div style={{ fontSize: '11px', color: '#0369A1', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>👉 Click for guest check-in drill-down</span>
-                <ChevronRight size={14} />
-              </div>
-            </div>
-
-            {/* Card 2: Today's Departures */}
-            <div className="lodgify-card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700' }}>Departures Due</span>
-                <LogOut size={16} color="#0F172A" />
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                3 Guests
-              </div>
-              <div style={{ fontSize: '11px', color: '#64748B' }}>
-                2 Checked out, 1 Late departure
-              </div>
-            </div>
-
-            {/* Card 3: In-House Occupancy */}
-            <div className="lodgify-card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700' }}>In-House Occupancy</span>
-                <Bookmark size={16} color="#10B981" />
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                78.2%
-              </div>
-              <div style={{ fontSize: '11px', color: '#059669', fontWeight: '600' }}>
-                18 of 23 Rooms Occupied
-              </div>
-            </div>
-
-            {/* Card 4: Outstanding Folio Balance */}
-            <div 
-              onClick={() => onNavigateTab('financials')}
-              className="lodgify-card hover:shadow-md" 
-              style={{ padding: '20px', cursor: 'pointer' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700' }}>Unsettled Folios</span>
-                <DollarSign size={16} color="#0F172A" />
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                ₹3,420
-              </div>
-              <div style={{ fontSize: '11px', color: '#D97706', fontWeight: '600' }}>
-                Pending checkout payment
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* D. ADMIN MASTER HOTEL OVERVIEW */}
-      {activePerspective === 'Admin' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* Executive Department Drilldown Shortcut Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-            {/* Kitchen Drilldown Shortcut */}
-            <div 
-              onClick={() => setDrilldownType('kitchen-orders')}
-              style={{
-                backgroundColor: '#FFF1F2',
-                border: '1.5px solid #FECDD3',
-                borderRadius: '14px',
-                padding: '16px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer'
-              }}
-              className="hover:shadow-md"
-            >
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: '800', color: '#991B1B', textTransform: 'uppercase' }}>
-                  Kitchen Executive Drill-Down
-                </div>
-                <div style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', marginTop: '2px' }}>
-                  {kitchenOrders.filter(o => o.status !== 'Delivered').length} Live Open Orders
-                </div>
-                <div style={{ fontSize: '11px', color: '#991B1B', marginTop: '2px' }}>
-                  Click to inspect Room 101, 104, 106 ordered items
-                </div>
-              </div>
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <UtensilsCrossed size={18} color="#991B1B" />
-              </div>
-            </div>
-
-            {/* Housekeeping Drilldown Shortcut */}
-            <div 
-              onClick={() => setDrilldownType('housekeeping-rooms')}
-              style={{
-                backgroundColor: '#ECFDF5',
-                border: '1.5px solid #A7F3D0',
-                borderRadius: '14px',
-                padding: '16px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer'
-              }}
-              className="hover:shadow-md"
-            >
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: '800', color: '#065F46', textTransform: 'uppercase' }}>
-                  Housekeeping Turnover Drill-Down
-                </div>
-                <div style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', marginTop: '2px' }}>
-                  {housekeepingRooms.filter(r => r.cleanStatus !== 'Clean' && r.cleanStatus !== 'Inspected').length} Rooms Need Cleaning
-                </div>
-                <div style={{ fontSize: '11px', color: '#065F46', marginTop: '2px' }}>
-                  Click to view Room 102, 105, 201 turnover status
-                </div>
-              </div>
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Sparkles size={18} color="#065F46" />
-              </div>
-            </div>
-
-            {/* Reception Drilldown Shortcut */}
-            <div 
-              onClick={() => setDrilldownType('reception-arrivals')}
-              style={{
-                backgroundColor: '#F0F9FF',
-                border: '1.5px solid #BAE6FD',
-                borderRadius: '14px',
-                padding: '16px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer'
-              }}
-              className="hover:shadow-md"
-            >
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: '800', color: '#0369A1', textTransform: 'uppercase' }}>
-                  Reception Arrival Drill-Down
-                </div>
-                <div style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', marginTop: '2px' }}>
-                  {expectedArrivals.filter(a => !a.checkedIn).length} Expected Check-Ins
-                </div>
-                <div style={{ fontSize: '11px', color: '#0369A1', marginTop: '2px' }}>
-                  Click to view guest documents & 1-click check-in
-                </div>
-              </div>
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <LogIn size={18} color="#0369A1" />
-              </div>
-            </div>
-          </div>
-
-          {/* Master 4 Metric Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
-            {/* Card 1: New Bookings */}
-            <div className="lodgify-card" style={{ backgroundColor: '#E6F9EE', borderColor: '#D1F4DE', padding: '22px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <span style={{ fontSize: '13px', color: '#4B6354', fontWeight: '600' }}>New Bookings</span>
-                <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
-                  <Bookmark size={16} color="#10B981" />
-                </div>
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px', marginBottom: '8px' }}>
-                840
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ backgroundColor: '#D1FAE5', color: '#065F46', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                  <ArrowUpRight size={12} /> 8.70%
-                </span>
-                <span style={{ fontSize: '11px', color: '#64748B' }}>from last week</span>
-              </div>
-            </div>
-
-            {/* Card 2: Check-In */}
-            <div className="lodgify-card" style={{ padding: '22px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '600' }}>Check-In</span>
-                <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <LogIn size={16} color="#0F172A" />
-                </div>
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px', marginBottom: '8px' }}>
-                231
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ backgroundColor: '#D1FAE5', color: '#065F46', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                  <ArrowUpRight size={12} /> 3.56%
-                </span>
-                <span style={{ fontSize: '11px', color: '#64748B' }}>from last week</span>
-              </div>
-            </div>
-
-            {/* Card 3: Check-Out */}
-            <div className="lodgify-card" style={{ padding: '22px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '600' }}>Check-Out</span>
-                <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <LogOut size={16} color="#0F172A" />
-                </div>
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px', marginBottom: '8px' }}>
-                124
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ backgroundColor: '#FEE2E2', color: '#991B1B', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                  <ArrowDownRight size={12} /> 1.06%
-                </span>
-                <span style={{ fontSize: '11px', color: '#64748B' }}>from last week</span>
-              </div>
-            </div>
-
-            {/* Card 4: Total Revenue */}
-            <div className="lodgify-card" style={{ padding: '22px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '600' }}>Total Revenue</span>
-                <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <DollarSign size={16} color="#0F172A" />
-                </div>
-              </div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px', marginBottom: '8px' }}>
-                ₹123,980
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ backgroundColor: '#D1FAE5', color: '#065F46', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '9999px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                  <ArrowUpRight size={12} /> 5.70%
-                </span>
-                <span style={{ fontSize: '11px', color: '#64748B' }}>from last week</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* LOWER SECTION: CHARTS, REVIEWS & TASKS WIDGETS       */}
-      {/* ---------------------------------------------------- */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+      {/* 4. MAIN GRID: 2 COLUMNS (LEFT 2/3, RIGHT 1/3) */}
+      <div className="dashboard-main-grid" style={{
+        display: 'grid',
+        gridTemplateColumns: '2fr 1fr',
+        gap: '24px'
+      }}>
         
-        {/* Left Column: Room Availability + Revenue Wave */}
+        {/* LEFT COLUMN: ROOM AVAILABILITY & REVENUE, RESERVATIONS & BOOKING PLATFORM */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '20px' }}>
+          {/* ROW 1: Room Availability (Left) + Revenue Wave (Right) */}
+          <div className="dashboard-sub-grid" style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1.6fr',
+            gap: '20px'
+          }}>
             {/* Room Availability Card */}
             <div className="lodgify-card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
@@ -1180,173 +646,317 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, cur
                 </button>
               </div>
 
-              {/* Circular Gauge */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '10px 0 24px 0' }}>
-                <div style={{ position: 'relative', width: '150px', height: '150px' }}>
-                  <svg width="150" height="150" viewBox="0 0 150 150">
-                    <circle cx="75" cy="75" r="60" fill="none" stroke="#E2E8F0" strokeWidth="16" />
-                    <circle
-                      cx="75"
-                      cy="75"
-                      r="60"
-                      fill="none"
-                      stroke="#0F172A"
-                      strokeWidth="16"
-                      strokeDasharray="377"
-                      strokeDashoffset="80"
-                      strokeLinecap="round"
-                      transform="rotate(-90 75 75)"
-                    />
-                  </svg>
-                  <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <span style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px' }}>
-                      231
-                    </span>
-                    <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '600' }}>
-                      Rooms
-                    </span>
-                  </div>
+              {/* Dynamic Segmented bar */}
+              <div style={{
+                height: '36px',
+                borderRadius: '8px',
+                display: 'flex',
+                overflow: 'hidden',
+                marginBottom: '24px',
+                gap: '2px'
+              }}>
+                <div style={{ flex: Math.max(1, roomAvailability.occupied), backgroundColor: '#D1FAE5' }} title={`Occupied (${roomAvailability.occupied})`} />
+                <div style={{ flex: Math.max(1, roomAvailability.reserved), backgroundColor: '#FEF08A' }} title={`Reserved (${roomAvailability.reserved})`} />
+                <div style={{ flex: Math.max(1, roomAvailability.available), backgroundColor: '#BEF264' }} title={`Available (${roomAvailability.available})`} />
+                <div style={{ flex: Math.max(1, roomAvailability.notReady), backgroundColor: '#E2E8F0' }} title={`Not Ready (${roomAvailability.notReady})`} />
+              </div>
+
+              {/* 4 Counters */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '2px' }}>Occupied</div>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A' }}>{roomAvailability.occupied}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '2px' }}>Reserved</div>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A' }}>{roomAvailability.reserved}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '2px' }}>Available</div>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A' }}>{roomAvailability.available}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '2px' }}>Not Ready</div>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A' }}>{roomAvailability.notReady}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Revenue Chart Card */}
+            <div className="lodgify-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Revenue</h2>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: '#F4FBD0',
+                  padding: '5px 12px',
+                  borderRadius: '9999px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  color: '#0F172A',
+                  cursor: 'pointer'
+                }}>
+                  <span>{revenueRange}</span>
+                  <ChevronDown size={14} />
                 </div>
               </div>
 
-              {/* Metric Breakdown Rows */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* SVG Wavy Revenue Line Chart with Badge */}
+              <div style={{ position: 'relative', width: '100%', height: '180px', marginTop: '10px' }}>
+                {/* Floating Badge */}
+                <div style={{
+                  position: 'absolute',
+                  top: '18px',
+                  left: '46%',
+                  transform: 'translateX(-50%)',
+                  backgroundColor: '#D4F05B',
+                  color: '#0F172A',
+                  fontWeight: '800',
+                  fontSize: '12px',
+                  padding: '4px 10px',
+                  borderRadius: '9999px',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
+                  zIndex: 5
+                }}>
+                  ₹315,060
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '-4px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 0,
+                    height: 0,
+                    borderLeft: '4px solid transparent',
+                    borderRight: '4px solid transparent',
+                    borderTop: '4px solid #D4F05B'
+                  }} />
+                </div>
+
+                <svg viewBox="0 0 500 170" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                  <defs>
+                    <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#D4F05B" stopOpacity="0.35" />
+                      <stop offset="100%" stopColor="#D4F05B" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Horizontal grid lines */}
+                  <line x1="0" y1="30" x2="500" y2="30" stroke="#F1F5F9" strokeDasharray="4 4" />
+                  <line x1="0" y1="70" x2="500" y2="70" stroke="#F1F5F9" strokeDasharray="4 4" />
+                  <line x1="0" y1="110" x2="500" y2="110" stroke="#F1F5F9" strokeDasharray="4 4" />
+                  <line x1="0" y1="150" x2="500" y2="150" stroke="#E2E8F0" />
+
+                  {/* Smooth curve */}
+                  <path
+                    d="M 10 90 Q 60 100 110 80 T 230 45 T 350 85 T 480 95 L 480 150 L 10 150 Z"
+                    fill="url(#revenueGrad)"
+                  />
+                  <path
+                    d="M 10 90 Q 60 100 110 80 T 230 45 T 350 85 T 480 95"
+                    fill="none"
+                    stroke="#10B981"
+                    strokeWidth="2.5"
+                  />
+
+                  {/* Active Point dot */}
+                  <circle cx="230" cy="45" r="5" fill="#10B981" stroke="#FFFFFF" strokeWidth="2.5" />
+                </svg>
+
+                {/* X-Axis labels */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '10px',
+                  color: '#94A3B8',
+                  marginTop: '4px'
+                }}>
+                  <span>Dec 2027</span>
+                  <span>Jan 2028</span>
+                  <span style={{ fontWeight: '700', color: '#0F172A' }}>Feb 2028</span>
+                  <span>Mar 2028</span>
+                  <span>Apr 2028</span>
+                  <span>May 2028</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ROW 2: Reservations Bar Chart + Booking by Platform Donut */}
+          <div className="dashboard-sub-grid" style={{
+            display: 'grid',
+            gridTemplateColumns: '1.2fr 1fr',
+            gap: '20px'
+          }}>
+            {/* Reservations Bar Chart */}
+            <div className="lodgify-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Reservations</h2>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: '#F4FBD0',
+                  padding: '4px 10px',
+                  borderRadius: '9999px',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  color: '#0F172A',
+                  cursor: 'pointer'
+                }}>
+                  <span>{reservationsRange}</span>
+                  <ChevronDown size={12} />
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px', fontSize: '11px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#D1FAE5' }} />
+                  <span style={{ color: '#64748B' }}>Booked</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#FEF08A' }} />
+                  <span style={{ color: '#64748B' }}>Canceled</span>
+                </div>
+              </div>
+
+              {/* 7-day Bar chart */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '130px', paddingBottom: '20px', borderBottom: '1px solid #F1F5F9' }}>
                 {[
-                  { label: 'Available Room', count: 48, color: '#D4F05B' },
-                  { label: 'Sold Out', count: 124, color: '#0F172A' },
-                  { label: 'Booked', count: 59, color: '#94A3B8' }
-                ].map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: item.color }} />
-                      <span style={{ color: '#64748B', fontWeight: '500' }}>{item.label}</span>
+                  { day: '12 Jun', booked: 65, canceled: 15 },
+                  { day: '13 Jun', booked: 75, canceled: 20 },
+                  { day: '14 Jun', booked: 60, canceled: 12 },
+                  { day: '15 Jun', booked: 85, canceled: 18 },
+                  { day: '16 Jun', booked: 90, canceled: 22 },
+                  { day: '17 Jun', booked: 70, canceled: 15 },
+                  { day: '18 Jun', booked: 80, canceled: 16 }
+                ].map((col, idx) => (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', width: '28px' }}>
+                    <div style={{
+                      width: '18px',
+                      height: `${col.booked + col.canceled}px`,
+                      borderRadius: '4px',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column-reverse'
+                    }}>
+                      <div style={{ height: `${col.booked}px`, backgroundColor: '#D1FAE5' }} />
+                      <div style={{ height: `${col.canceled}px`, backgroundColor: '#FEF08A' }} />
                     </div>
-                    <span style={{ fontWeight: '700', color: '#0F172A' }}>{item.count}</span>
+                    <span style={{ fontSize: '10px', color: '#94A3B8' }}>{col.day}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Revenue Analytics Wave */}
+            {/* Booking by Platform Donut Chart */}
             <div className="lodgify-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Revenue Analytics</h2>
-                <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>Last 6 Months</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Booking by Platform</h2>
+                <button style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+                  <MoreHorizontal size={18} />
+                </button>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginBottom: '20px' }}>
-                <span style={{ fontSize: '26px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px' }}>
-                  ₹123,980
-                </span>
-                <span style={{ fontSize: '11px', fontWeight: '700', color: '#065F46', backgroundColor: '#D1FAE5', padding: '2px 6px', borderRadius: '6px' }}>
-                  +5.7% RevPAR
-                </span>
-              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '10px' }}>
+                {/* SVG Donut Chart */}
+                <div style={{ width: '120px', height: '120px', minWidth: '120px' }}>
+                  <svg viewBox="0 0 42 42" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                    <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#A7F3D0" strokeWidth="6" strokeDasharray="61 39" strokeDashoffset="0" />
+                    <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#D4F05B" strokeWidth="6" strokeDasharray="12 88" strokeDashoffset="-61" />
+                    <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#BEF264" strokeWidth="6" strokeDasharray="11 89" strokeDashoffset="-73" />
+                    <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#FEF08A" strokeWidth="6" strokeDasharray="9 91" strokeDashoffset="-84" />
+                    <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#CBD5E1" strokeWidth="6" strokeDasharray="5 95" strokeDashoffset="-93" />
+                    <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#94A3B8" strokeWidth="6" strokeDasharray="2 98" strokeDashoffset="-98" />
+                  </svg>
+                </div>
 
-              <svg width="100%" height="160" viewBox="0 0 360 160" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="revenueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#D4F05B" stopOpacity="0.5" />
-                    <stop offset="100%" stopColor="#D4F05B" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-                <path d="M 0 140 Q 60 70, 120 90 T 240 40 T 360 20 L 360 160 L 0 160 Z" fill="url(#revenueGrad)" />
-                <path d="M 0 140 Q 60 70, 120 90 T 240 40 T 360 20" fill="none" stroke="#0F172A" strokeWidth="2.5" />
-              </svg>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94A3B8', marginTop: '12px' }}>
-                <span>Jan</span>
-                <span>Feb</span>
-                <span>Mar</span>
-                <span>Apr</span>
-                <span>May</span>
-                <span>Jun</span>
+                {/* Legend list */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#A7F3D0' }} />
+                    <span style={{ fontWeight: '600', color: '#0F172A' }}>61%</span>
+                    <span style={{ color: '#64748B' }}>Direct Booking</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#D4F05B' }} />
+                    <span style={{ fontWeight: '600', color: '#0F172A' }}>12%</span>
+                    <span style={{ color: '#64748B' }}>Booking.com</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#BEF264' }} />
+                    <span style={{ fontWeight: '600', color: '#0F172A' }}>11%</span>
+                    <span style={{ color: '#64748B' }}>Agoda</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#FEF08A' }} />
+                    <span style={{ fontWeight: '600', color: '#0F172A' }}>9%</span>
+                    <span style={{ color: '#64748B' }}>Airbnb</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#CBD5E1' }} />
+                    <span style={{ fontWeight: '600', color: '#0F172A' }}>5%</span>
+                    <span style={{ color: '#64748B' }}>Hotels.com</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#94A3B8' }} />
+                    <span style={{ fontWeight: '600', color: '#0F172A' }}>2%</span>
+                    <span style={{ color: '#64748B' }}>Others</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Operational Notes Feed (From Quick Action) */}
+        {/* RIGHT COLUMN: FRONT DESK NOTES, OVERALL RATING & TASKS WIDGET */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          
+          {/* Front Desk Notes Component (Shift-Specific Handover Notes) */}
+          <FrontDeskNotes currentUser={currentUser} onNavigateTab={onNavigateTab} />
+
+          {/* Card 2: Overall Rating */}
           <div className="lodgify-card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <StickyNote size={18} color="#0F172A" />
-                <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                  Active Guest Operational Notes & Requests
-                </h3>
-              </div>
-              <button 
-                onClick={() => setAddNoteModal(true)} 
-                style={{ fontSize: '11px', fontWeight: '700', color: '#0369A1', backgroundColor: '#E0F2FE', border: 'none', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer' }}
-              >
-                + Add Note
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Overall Rating</h2>
+              <button style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+                <MoreHorizontal size={18} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {guestNotesList.length === 0 ? (
-                <div style={{ padding: '16px', backgroundColor: '#F8FAFC', borderRadius: '10px', fontSize: '12px', color: '#64748B', textAlign: 'center' }}>
-                  No special guest requests currently logged. Use "Add Guest Note" to record preferences.
-                </div>
-              ) : (
-                guestNotesList.slice(0, 4).map((n) => (
-                  <div key={n.id} style={{ padding: '12px', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <span style={{ fontWeight: '800', fontSize: '12px', color: '#0F172A' }}>
-                          Room {n.roomNumber} ({n.guestName})
-                        </span>
-                        <span style={{ fontSize: '10px', fontWeight: '700', backgroundColor: '#FEF3C7', color: '#92400E', padding: '2px 6px', borderRadius: '4px' }}>
-                          {n.category}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: '12px', color: '#475569', margin: 0 }}>
-                        {n.note}
-                      </p>
-                    </div>
-                    <span style={{ fontSize: '10px', color: '#94A3B8', whiteSpace: 'nowrap' }}>
-                      {n.createdAt?.slice(11, 16) || 'Today'}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-        </div>
-
-        {/* Right Column: Reviews + Tasks Widget */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* Guest Reviews summary */}
-          <div className="lodgify-card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Guest Experience</h2>
-              <span style={{ fontSize: '11px', fontWeight: '700', color: '#10B981', backgroundColor: '#D1FAE5', padding: '2px 6px', borderRadius: '4px' }}>
-                4.9 / 5.0
-              </span>
+            {/* Score header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+              <div style={{
+                backgroundColor: '#D1FAE5',
+                color: '#065F46',
+                fontWeight: '800',
+                fontSize: '20px',
+                padding: '6px 14px',
+                borderRadius: '12px'
+              }}>
+                4.6 <span style={{ fontSize: '13px', fontWeight: '600', opacity: 0.8 }}>/5</span>
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>Impressive</div>
+                <div style={{ fontSize: '11px', color: '#94A3B8' }}>from 2,544 reviews</div>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Category breakdown bars */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {[
-                { name: 'Facilities', score: 4.8, width: '96%' },
-                { name: 'Cleanliness', score: 4.9, width: '98%' },
-                { name: 'F&B Quality', score: 4.7, width: '94%' },
-                { name: 'Front Desk', score: 4.9, width: '98%' }
+                { name: 'Facilities', score: 4.4, width: '88%' },
+                { name: 'Cleanliness', score: 4.7, width: '94%' },
+                { name: 'Services', score: 4.6, width: '92%' },
+                { name: 'Comfort', score: 4.8, width: '96%' },
+                { name: 'Location', score: 4.5, width: '90%' }
               ].map((cat, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', fontSize: '12px' }}>
-                  <span style={{ width: '85px', color: '#64748B', fontWeight: '500' }}>{cat.name}</span>
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', fontSize: '12px' }}>
+                  <span style={{ width: '80px', color: '#64748B', fontWeight: '500' }}>{cat.name}</span>
                   <div style={{ flex: 1, height: '6px', backgroundColor: '#F1F5F9', borderRadius: '9999px', overflow: 'hidden' }}>
-                    <div style={{ width: cat.width, height: '100%', backgroundColor: '#D4F05B', borderRadius: '9999px' }} />
+                    <div style={{ width: cat.width, height: '100%', backgroundColor: '#FEF08A', borderRadius: '9999px' }} />
                   </div>
                   <span style={{ width: '24px', textAlign: 'right', fontWeight: '700', color: '#0F172A' }}>{cat.score}</span>
                 </div>
@@ -1354,10 +964,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, cur
             </div>
           </div>
 
-          {/* Operational Tasks Widget */}
-          <div className="lodgify-card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Management Tasks</h2>
+          {/* Card 2: Tasks Widget */}
+          <div className="lodgify-card" style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Tasks</h2>
               <button
                 onClick={() => setNewTaskModal(true)}
                 style={{
@@ -1369,29 +979,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, cur
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.08)'
                 }}
               >
                 <Plus size={16} color="#0F172A" />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Tasks list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {tasks.map((t) => (
                 <div
                   key={t.id}
                   style={{
                     backgroundColor: t.highlight ? '#FEF9C3' : '#F8FAFC',
                     border: t.highlight ? '1px solid #FEF08A' : '1px solid #E8EEF5',
-                    borderRadius: '12px',
-                    padding: '12px',
+                    borderRadius: '14px',
+                    padding: '14px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '4px'
+                    gap: '4px',
+                    position: 'relative'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '600' }}>{t.date}</span>
+                    <button style={{ background: 'none', border: 'none', color: '#CBD5E1', cursor: 'pointer', padding: 0 }}>
+                      <MoreHorizontal size={14} />
+                    </button>
                   </div>
                   <div style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', lineHeight: 1.4 }}>
                     {t.title}
@@ -1402,735 +1018,538 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab, cur
           </div>
 
         </div>
-
       </div>
 
-      {/* ---------------------------------------------------- */}
-      {/* 1. DRILL-DOWN MODAL: KITCHEN ROOM-WISE ITEM ORDERS    */}
-      {/* ---------------------------------------------------- */}
-      {drilldownType === 'kitchen-orders' && (
-        <div className="modal-overlay">
-          <div className="modal-container" style={{ maxWidth: '780px', padding: '28px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <UtensilsCrossed size={20} color="#991B1B" />
+      {/* ========================================================================= */}
+      {/* MODAL 1: NEW RESERVATION                                                  */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showNewReservationModal && (
+          <motion.div
+            key="dashboard-new-resv-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowNewReservationModal(false);
+            }}
+            className="modal-overlay"
+          >
+            <motion.div
+              key="dashboard-new-resv-container"
+              initial={{ opacity: 0, scale: 0.93, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              className="modal-container"
+              style={{ maxWidth: '640px', padding: '28px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#D4F05B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <CalendarPlus size={20} color="#0F172A" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: '#0F172A' }}>New Reservation</h3>
+                    <div style={{ fontSize: '12px', color: '#64748B' }}>Book guest accommodation and create automatic folio ledger</div>
+                  </div>
                 </div>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                    🍳 Kitchen Display: Room Number-Wise Item Orders
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>
-                    Detailed breakdown of ordered dishes, room delivery destinations, timers, and prep stages.
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setDrilldownType(null)} 
-                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {kitchenOrders.map((order) => (
-                <div 
-                  key={order.id} 
-                  style={{
-                    backgroundColor: '#F8FAFC',
-                    border: '1.5px solid #E2E8F0',
-                    borderRadius: '14px',
-                    padding: '18px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px'
-                  }}
+                <button 
+                  onClick={() => setShowNewReservationModal(false)}
+                  style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
                 >
-                  {/* Order Header */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>
-                        🏨 {order.roomOrTable}
-                      </span>
-                      <span style={{ fontSize: '12px', color: '#64748B' }}>
-                        Guest: <strong>{order.guestName}</strong>
-                      </span>
-                      <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#E2E8F0', padding: '2px 8px', borderRadius: '4px' }}>
-                        {order.orderNumber}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '11px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Clock size={12} /> {order.timeAgo}
-                      </span>
-                      <span style={{
-                        fontSize: '11px',
-                        fontWeight: '800',
-                        padding: '3px 10px',
-                        borderRadius: '9999px',
-                        backgroundColor: order.status === 'Ready' ? '#D1FAE5' : order.status === 'Preparing' ? '#FEF3C7' : '#E0F2FE',
-                        color: order.status === 'Ready' ? '#065F46' : order.status === 'Preparing' ? '#92400E' : '#0369A1'
-                      }}>
-                        ● {order.status}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Item List */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {order.items.map((it, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E8EEF5' }}>
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
-                            {it.qty}x {it.name}
-                          </div>
-                          {it.special && (
-                            <div style={{ fontSize: '11px', color: '#D97706', fontStyle: 'italic', marginTop: '2px' }}>
-                              Note: {it.special}
-                            </div>
-                          )}
-                        </div>
-                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
-                          ₹{it.price}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Actions Bar */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '6px' }}>
-                    <span style={{ fontSize: '12px', color: '#059669', fontWeight: '700' }}>
-                      {order.billedToRoom ? '✓ Automatically Charged to Room Folio' : 'Payment on Delivery'}
-                    </span>
-                    <button
-                      onClick={() => handleKitchenStatusCycle(order.id)}
-                      style={{
-                        padding: '6px 14px',
-                        backgroundColor: order.status === 'Ready' ? '#059669' : '#0F172A',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {order.status === 'Received' ? 'Start Preparing 🍳' : order.status === 'Preparing' ? 'Mark Ready for Delivery 🛎️' : 'Mark Delivered & Complete ✓'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* 2. DRILL-DOWN MODAL: HOUSEKEEPING ROOM TURNOVERS      */}
-      {/* ---------------------------------------------------- */}
-      {drilldownType === 'housekeeping-rooms' && (
-        <div className="modal-overlay">
-          <div className="modal-container" style={{ maxWidth: '820px', padding: '28px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Sparkles size={20} color="#065F46" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                    🧹 Housekeeping: Room Number-Wise Cleaning & Turnover
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>
-                    Detailed cleaning status, priority level, housekeeper assignment, and turnover timeline.
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setDrilldownType(null)} 
-                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Room No & Category</th>
-                  <th>Priority</th>
-                  <th>Assigned Attendant</th>
-                  <th>Clean Stage</th>
-                  <th>Turnover Schedule</th>
-                  <th style={{ textAlign: 'right' }}>Update Clean Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {housekeepingRooms.map((room) => (
-                  <tr key={room.roomNumber}>
-                    <td>
-                      <div style={{ fontWeight: '800', color: '#0F172A', fontSize: '14px' }}>
-                        Room {room.roomNumber}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748B' }}>
-                        {room.category} (Floor {room.floor})
-                      </div>
-                    </td>
-                    <td>
-                      <span style={{
-                        fontSize: '11px',
-                        fontWeight: '800',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        backgroundColor: room.priority === 'High' ? '#FEE2E2' : '#FEF3C7',
-                        color: room.priority === 'High' ? '#991B1B' : '#92400E'
-                      }}>
-                        {room.priority}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '12px', fontWeight: '600', color: '#0F172A' }}>
-                        {room.assignedTo}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{
-                        fontSize: '11px',
-                        fontWeight: '800',
-                        padding: '3px 10px',
-                        borderRadius: '9999px',
-                        backgroundColor: room.cleanStatus === 'Clean' || room.cleanStatus === 'Inspected' ? '#D1FAE5' : room.cleanStatus === 'In Process' ? '#FEF3C7' : '#FEE2E2',
-                        color: room.cleanStatus === 'Clean' || room.cleanStatus === 'Inspected' ? '#065F46' : room.cleanStatus === 'In Process' ? '#92400E' : '#991B1B'
-                      }}>
-                        ● {room.cleanStatus}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '11px', color: '#475569' }}>
-                        <strong>Arr:</strong> {room.nextArrival}
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#94A3B8' }}>
-                        {room.remarks}
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleHousekeepingStatusCycle(room.roomNumber)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: room.cleanStatus === 'Clean' ? '#D1FAE5' : '#0F172A',
-                          color: room.cleanStatus === 'Clean' ? '#065F46' : '#FFFFFF',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '11px',
-                          fontWeight: '700',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {room.cleanStatus === 'Dirty' ? 'Start Cleaning 🧹' : room.cleanStatus === 'In Process' ? 'Mark Clean ✨' : 'Inspect Room ✓'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* 3. DRILL-DOWN MODAL: RECEPTION ARRIVALS & CHECK-IN    */}
-      {/* ---------------------------------------------------- */}
-      {drilldownType === 'reception-arrivals' && (
-        <div className="modal-overlay">
-          <div className="modal-container" style={{ maxWidth: '840px', padding: '28px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <LogIn size={20} color="#0369A1" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                    🏨 Front Desk: Expected Guest Arrival Manifest
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>
-                    Room assignments, digital KYC verification status, prepaid deposit, and express check-in.
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setDrilldownType(null)} 
-                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Guest Full Name</th>
-                  <th>Assigned Room</th>
-                  <th>Duration</th>
-                  <th>Digital KYC Verification</th>
-                  <th>Advance Deposit</th>
-                  <th style={{ textAlign: 'right' }}>Front Desk Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expectedArrivals.map((arr) => (
-                  <tr key={arr.id}>
-                    <td>
-                      <div style={{ fontWeight: '800', color: '#0F172A', fontSize: '13px' }}>
-                        {arr.guestName}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748B' }}>
-                        Source: {arr.source}
-                      </div>
-                    </td>
-                    <td>
-                      <span style={{
-                        fontWeight: '800',
-                        fontSize: '13px',
-                        backgroundColor: '#F1F5F9',
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        color: '#0F172A'
-                      }}>
-                        Room {arr.roomNumber}
-                      </span>
-                      <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '2px' }}>
-                        {arr.roomCategory}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '12px', color: '#0F172A', fontWeight: '600' }}>
-                        {arr.nights} Nights
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#94A3B8' }}>
-                        {arr.guestsCount} Guests
-                      </div>
-                    </td>
-                    <td>
-                      <span style={{
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        backgroundColor: arr.kycStatus.includes('Verified') ? '#D1FAE5' : '#FEF3C7',
-                        color: arr.kycStatus.includes('Verified') ? '#065F46' : '#92400E',
-                        padding: '2px 8px',
-                        borderRadius: '4px'
-                      }}>
-                        {arr.kycStatus}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
-                        {arr.advancePaid}
-                      </div>
-                      <div style={{ fontSize: '10px', color: arr.balanceDue === '₹0' ? '#10B981' : '#EF4444' }}>
-                        Due: {arr.balanceDue}
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      {arr.checkedIn ? (
-                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#059669', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Check size={14} /> Checked In
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => handleOneClickCheckIn(arr.id)}
-                          style={{
-                            padding: '6px 12px',
-                            backgroundColor: '#D4F05B',
-                            color: '#0F172A',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: '800',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          ⚡ Express Check-In
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* 4. QUICK ACTION MODAL: NEW BOOKING                   */}
-      {/* ---------------------------------------------------- */}
-      {newBookingModal && (
-        <div className="modal-overlay">
-          <div className="modal-container" style={{ maxWidth: '540px', padding: '28px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '50%', backgroundColor: '#D4F05B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <CalendarPlus size={20} color="#0F172A" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                    Quick New Reservation
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>
-                    Instantly book a room and register guest details.
-                  </p>
-                </div>
-              </div>
-              <button onClick={() => setNewBookingModal(false)} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleQuickNewBooking} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  Guest Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. David Miller"
-                  value={bookingForm.guestName}
-                  onChange={(e) => setBookingForm({ ...bookingForm, guestName: e.target.value })}
-                  className="input-clean"
-                  style={{ width: '100%', borderRadius: '10px' }}
-                />
+                  <X size={20} />
+                </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <form onSubmit={handleCreateReservation} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                    Email Address
-                  </label>
+                  <label className="form-label">Guest Full Name *</label>
                   <input
-                    type="email"
-                    placeholder="d.miller@gmail.com"
-                    value={bookingForm.guestEmail}
-                    onChange={(e) => setBookingForm({ ...bookingForm, guestEmail: e.target.value })}
+                    type="text"
+                    required
+                    placeholder="e.g. Vikramaditya Singhania"
+                    value={resvGuestName}
+                    onChange={(e) => setResvGuestName(e.target.value)}
                     className="input-clean"
                     style={{ width: '100%', borderRadius: '10px' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                    Phone Number
-                  </label>
+                  <label className="form-label">Contact Phone</label>
                   <input
                     type="tel"
-                    placeholder="+1 415 998 2211"
-                    value={bookingForm.guestPhone}
-                    onChange={(e) => setBookingForm({ ...bookingForm, guestPhone: e.target.value })}
+                    placeholder="e.g. +91 98201 55432"
+                    value={resvGuestPhone}
+                    onChange={(e) => setResvGuestPhone(e.target.value)}
                     className="input-clean"
                     style={{ width: '100%', borderRadius: '10px' }}
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                    Select Room Number *
-                  </label>
-                  <select
-                    value={bookingForm.roomNumber}
-                    onChange={(e) => setBookingForm({ ...bookingForm, roomNumber: e.target.value })}
+                  <label className="form-label">Guest Email</label>
+                  <input
+                    type="email"
+                    placeholder="guest@example.com"
+                    value={resvGuestEmail}
+                    onChange={(e) => setResvGuestEmail(e.target.value)}
                     className="input-clean"
                     style={{ width: '100%', borderRadius: '10px' }}
-                  >
-                    <option value="103">Room 103 (Standard - ₹2,500/nt)</option>
-                    <option value="104">Room 104 (Deluxe - ₹3,500/nt)</option>
-                    <option value="107">Room 107 (Standard - ₹2,500/nt)</option>
-                    <option value="201">Room 201 (Suite - ₹5,500/nt)</option>
-                    <option value="203">Room 203 (Executive - ₹6,000/nt)</option>
-                  </select>
+                  />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                    Booking Source
-                  </label>
+                  <label className="form-label">Room Assignment</label>
                   <select
-                    value={bookingForm.source}
-                    onChange={(e) => setBookingForm({ ...bookingForm, source: e.target.value })}
+                    value={resvRoomNumber}
+                    onChange={(e) => {
+                      setResvRoomNumber(e.target.value);
+                      const selected = rooms.find(r => r.roomNumber === e.target.value);
+                      if (selected) setResvCategory(selected.category);
+                    }}
                     className="input-clean"
                     style={{ width: '100%', borderRadius: '10px' }}
                   >
-                    <option value="Direct">Direct / Walk-in</option>
+                    {rooms.length > 0 ? (
+                      rooms.map(r => (
+                        <option key={r.id} value={r.roomNumber}>
+                          Room {r.roomNumber} – {r.category} ({r.status})
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="101">Room 101 – Deluxe (Available)</option>
+                        <option value="102">Room 102 – Deluxe (Available)</option>
+                        <option value="201">Room 201 – Executive Suite (Available)</option>
+                        <option value="301">Room 301 – Presidential Suite (Available)</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label className="form-label">Check-in Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={resvCheckIn}
+                    onChange={(e) => setResvCheckIn(e.target.value)}
+                    className="input-clean"
+                    style={{ width: '100%', borderRadius: '10px' }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Check-out Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={resvCheckOut}
+                    onChange={(e) => setResvCheckOut(e.target.value)}
+                    className="input-clean"
+                    style={{ width: '100%', borderRadius: '10px' }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Guests Count</label>
+                  <select
+                    value={resvGuestsCount}
+                    onChange={(e) => setResvGuestsCount(Number(e.target.value))}
+                    className="input-clean"
+                    style={{ width: '100%', borderRadius: '10px' }}
+                  >
+                    <option value={1}>1 Guest</option>
+                    <option value={2}>2 Guests</option>
+                    <option value={3}>3 Guests</option>
+                    <option value={4}>4+ Guests</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label className="form-label">Booking Channel</label>
+                  <select
+                    value={resvSource}
+                    onChange={(e) => setResvSource(e.target.value)}
+                    className="input-clean"
+                    style={{ width: '100%', borderRadius: '10px' }}
+                  >
+                    <option value="Direct">Direct (Walk-in / Phone)</option>
                     <option value="Booking.com">Booking.com</option>
-                    <option value="Expedia">Expedia</option>
                     <option value="Airbnb">Airbnb</option>
+                    <option value="Expedia">Expedia</option>
+                    <option value="Agoda">Agoda</option>
                   </select>
                 </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                    Check-in Date
-                  </label>
+                  <label className="form-label">Identity Doc Type</label>
+                  <select
+                    value={resvDocType}
+                    onChange={(e) => setResvDocType(e.target.value)}
+                    className="input-clean"
+                    style={{ width: '100%', borderRadius: '10px' }}
+                  >
+                    <option value="Aadhaar Card">Aadhaar Card</option>
+                    <option value="Passport">Passport</option>
+                    <option value="Driving License">Driving License</option>
+                    <option value="PAN Card">PAN Card</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">ID Document No.</label>
                   <input
-                    type="date"
-                    value={bookingForm.checkInDate}
-                    onChange={(e) => setBookingForm({ ...bookingForm, checkInDate: e.target.value })}
+                    type="text"
+                    placeholder="e.g. 5421 9876 1234"
+                    value={resvDocNumber}
+                    onChange={(e) => setResvDocNumber(e.target.value)}
                     className="input-clean"
                     style={{ width: '100%', borderRadius: '10px' }}
                   />
                 </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                    Check-out Date
-                  </label>
-                  <input
-                    type="date"
-                    value={bookingForm.checkOutDate}
-                    onChange={(e) => setBookingForm({ ...bookingForm, checkOutDate: e.target.value })}
-                    className="input-clean"
-                    style={{ width: '100%', borderRadius: '10px' }}
-                  />
-                </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" onClick={() => setNewBookingModal(false)} className="btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Confirm & Create Booking
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* 5. QUICK ACTION MODAL: ADD GUEST NOTE                */}
-      {/* ---------------------------------------------------- */}
-      {addNoteModal && (
-        <div className="modal-overlay">
-          <div className="modal-container" style={{ maxWidth: '480px', padding: '28px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '50%', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <StickyNote size={20} color="#0369A1" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                    Add Guest Note & Alert
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#64748B', margin: 0 }}>
-                    Record special guest preferences or department alerts.
-                  </p>
-                </div>
-              </div>
-              <button onClick={() => setAddNoteModal(false)} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleQuickAddNote} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                    Room Number *
-                  </label>
-                  <select
-                    value={noteForm.roomNumber}
-                    onChange={(e) => setNoteForm({ ...noteForm, roomNumber: e.target.value })}
-                    className="input-clean"
-                    style={{ width: '100%', borderRadius: '10px' }}
-                  >
-                    <option value="101">Room 101 (Sophia Laurent)</option>
-                    <option value="102">Room 102 (Daniel Hamilton)</option>
-                    <option value="104">Room 104 (Jonathan Vance)</option>
-                    <option value="106">Room 106 (Lord Sterling)</option>
-                    <option value="201">Room 201 (Executive Suite)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                    Note Category
-                  </label>
-                  <select
-                    value={noteForm.category}
-                    onChange={(e) => setNoteForm({ ...noteForm, category: e.target.value as any })}
-                    className="input-clean"
-                    style={{ width: '100%', borderRadius: '10px' }}
-                  >
-                    <option value="VIP Preference">VIP Preference</option>
-                    <option value="Dietary">Dietary / Food Allergy</option>
-                    <option value="Room Request">Room / Bed Request</option>
-                    <option value="Late Check-out">Late Check-out Alert</option>
-                    <option value="Maintenance">Maintenance Alert</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', display: 'block', marginBottom: '4px' }}>
-                  Note Description *
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  placeholder="e.g. Guest requested extra feather pillows and gluten-free bread for breakfast."
-                  value={noteForm.note}
-                  onChange={(e) => setNoteForm({ ...noteForm, note: e.target.value })}
-                  className="input-clean"
-                  style={{ width: '100%', borderRadius: '10px', resize: 'vertical' }}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                backgroundColor: '#F8FAFC',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                border: '1px solid #E2E8F0'
+              }}>
+                <input
+                  type="checkbox"
+                  id="immediateCheckInCheckbox"
+                  checked={resvImmediateCheckIn}
+                  onChange={(e) => setResvImmediateCheckIn(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: '#10B981' }}
                 />
+                <label htmlFor="immediateCheckInCheckbox" style={{ fontSize: '13px', color: '#0F172A', fontWeight: '600', cursor: 'pointer' }}>
+                  Immediate Check-in (Mark room as Occupied now)
+                </label>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" onClick={() => setAddNoteModal(false)} className="btn-secondary">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setShowNewReservationModal(false)} className="btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary">
-                  Save Note
+                <button type="submit" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <CheckCircle2 size={16} />
+                  <span>Confirm & Book Reservation</span>
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+    </AnimatePresence>
 
-      {/* ---------------------------------------------------- */}
-      {/* 6. QUICK ACTION MODAL: PRINT TODAY'S ARRIVAL LIST     */}
-      {/* ---------------------------------------------------- */}
-      {printArrivalsModal && (
-        <div className="modal-overlay">
-          <div className="modal-container printable-arrival-sheet" style={{ maxWidth: '840px', padding: '32px' }}>
-            
-            {/* Header with Print Buttons */}
-            <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', borderBottom: '1px solid #E2E8F0', paddingBottom: '14px' }}>
-              <div>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                  Today's Guest Arrival Manifest (Print Preview)
-                </h3>
-                <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>
-                  Ready to print or export as official front desk shift handover sheet.
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
+      {/* ========================================================================= */}
+      {/* MODAL 2: QUICK CHECK-IN                                                   */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showQuickCheckInModal && (
+          <motion.div
+            key="dashboard-quick-checkin-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowQuickCheckInModal(false);
+            }}
+            className="modal-overlay"
+          >
+            <motion.div
+              key="dashboard-quick-checkin-container"
+              initial={{ opacity: 0, scale: 0.93, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              className="modal-container"
+              style={{ maxWidth: '560px', padding: '28px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <UserCheck size={20} color="#065F46" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: '#0F172A' }}>Quick Check-in</h3>
+                    <div style={{ fontSize: '12px', color: '#64748B' }}>Expedite guest arrival, record ID credentials, and issue keycard</div>
+                  </div>
+                </div>
                 <button 
-                  onClick={handlePrintArrivals} 
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: '#0F172A',
-                    color: '#FFFFFF',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    border: 'none',
-                    cursor: 'pointer'
-                  }}
+                  onClick={() => setShowQuickCheckInModal(false)}
+                  style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
                 >
-                  <Printer size={15} />
-                  <span>Print Sheet (Ctrl+P)</span>
-                </button>
-                <button 
-                  onClick={() => setPrintArrivalsModal(false)} 
-                  className="btn-secondary"
-                >
-                  Close
+                  <X size={20} />
                 </button>
               </div>
-            </div>
 
-            {/* Print Document Content */}
-            <div style={{ borderBottom: '2px solid #0F172A', paddingBottom: '16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            <form onSubmit={handleCompleteCheckIn} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.3px' }}>
-                  THE GRAND AZURE HOTEL & RESORT
-                </h2>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: '#475569', marginTop: '4px' }}>
-                  Daily Front Desk Arrival List & KYC Compliance Register
+                <label className="form-label">Select Expected Guest / Reservation *</label>
+                <select
+                  value={selectedCheckInGuest}
+                  onChange={(e) => setSelectedCheckInGuest(e.target.value)}
+                  className="input-clean"
+                  style={{ width: '100%', borderRadius: '10px' }}
+                >
+                  <option value="BK-2026-902">Marcus Chen (BK-2026-902) – Room 102 (Deluxe)</option>
+                  <option value="BK-2026-905">Lord Alistair Sterling (BK-2026-905) – Room 301 (Presidential)</option>
+                  <option value="BK-2026-906">Elena Rostova (BK-2026-906) – Room 202 (Executive)</option>
+                  <option value="BK-2026-904">Amina Al-Mansoor (BK-2026-904) – Room 204 (Deluxe)</option>
+                  {reservations
+                    .filter(r => r.status === 'Confirmed' || r.status === 'Expected')
+                    .map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.guestName} ({r.bookingRef}) – Room {r.roomNumber}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label className="form-label">Identity Document</label>
+                  <select
+                    value={checkInDocType}
+                    onChange={(e) => setCheckInDocType(e.target.value)}
+                    className="input-clean"
+                    style={{ width: '100%', borderRadius: '10px' }}
+                  >
+                    <option value="Passport">Passport</option>
+                    <option value="Aadhaar Card">Aadhaar Card</option>
+                    <option value="Driving License">Driving License</option>
+                    <option value="National ID">National ID</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Document Serial No.</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. IN-98234120"
+                    value={checkInDocNumber}
+                    onChange={(e) => setCheckInDocNumber(e.target.value)}
+                    className="input-clean"
+                    style={{ width: '100%', borderRadius: '10px' }}
+                  />
                 </div>
               </div>
-              <div style={{ textAlign: 'right', fontSize: '12px', color: '#64748B' }}>
-                <div><strong>Date:</strong> {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
-                <div><strong>Shift:</strong> Morning / Evening Front Desk Roster</div>
+
+              <div style={{
+                backgroundColor: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
+                  <ShieldCheck size={16} color="#10B981" />
+                  <span>Front Desk Operational Checklist</span>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#475569', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={checkInKeyIssued}
+                    onChange={(e) => setCheckInKeyIssued(e.target.checked)}
+                    style={{ accentColor: '#10B981' }}
+                  />
+                  <span>RFID Room Keycard programmed and issued to guest</span>
+                </label>
+                <div style={{ fontSize: '11px', color: '#64748B' }}>
+                  Automatic folio ledger initialized with room tariffs and Indian dual-slab GST (SAC 996311).
+                </div>
               </div>
-            </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#F1F5F9', borderBottom: '2px solid #CBD5E1' }}>
-                  <th style={{ padding: '10px' }}>#</th>
-                  <th style={{ padding: '10px' }}>Guest Name</th>
-                  <th style={{ padding: '10px' }}>Room</th>
-                  <th style={{ padding: '10px' }}>Category</th>
-                  <th style={{ padding: '10px' }}>Nights</th>
-                  <th style={{ padding: '10px' }}>KYC Status</th>
-                  <th style={{ padding: '10px' }}>Advance Paid</th>
-                  <th style={{ padding: '10px' }}>Balance Due</th>
-                  <th style={{ padding: '10px' }}>Signature</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expectedArrivals.map((arr, idx) => (
-                  <tr key={arr.id} style={{ borderBottom: '1px solid #E2E8F0' }}>
-                    <td style={{ padding: '10px', color: '#64748B' }}>{idx + 1}</td>
-                    <td style={{ padding: '10px', fontWeight: '700', color: '#0F172A' }}>{arr.guestName}</td>
-                    <td style={{ padding: '10px', fontWeight: '800' }}>Room {arr.roomNumber}</td>
-                    <td style={{ padding: '10px', color: '#475569' }}>{arr.roomCategory}</td>
-                    <td style={{ padding: '10px' }}>{arr.nights} nts</td>
-                    <td style={{ padding: '10px', fontWeight: '600' }}>{arr.kycStatus}</td>
-                    <td style={{ padding: '10px' }}>{arr.advancePaid}</td>
-                    <td style={{ padding: '10px', fontWeight: '700' }}>{arr.balanceDue}</td>
-                    <td style={{ padding: '10px', borderBottom: '1px dotted #CBD5E1', width: '120px' }}></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748B' }}>
-              <div>Printed By: {currentUser?.name || 'Administrator'}</div>
-              <div>Duty Manager Signature: _______________________</div>
-            </div>
-
-          </div>
-        </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+                <button type="button" onClick={() => setShowQuickCheckInModal(false)} className="btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" style={{ backgroundColor: '#10B981', color: '#FFFFFF' }}>
+                  Complete Check-in
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </motion.div>
       )}
+    </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: GUEST CHECKOUT                                                   */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showGuestCheckoutModal && (
+          <motion.div
+            key="dashboard-checkout-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowGuestCheckoutModal(false);
+            }}
+            className="modal-overlay"
+          >
+            <motion.div
+              key="dashboard-checkout-container"
+              initial={{ opacity: 0, scale: 0.93, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              className="modal-container"
+              style={{ maxWidth: '560px', padding: '28px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <LogOut size={20} color="#991B1B" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: '#0F172A' }}>Guest Checkout</h3>
+                    <div style={{ fontSize: '12px', color: '#64748B' }}>Settle guest folio balance and release room to Housekeeping</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowGuestCheckoutModal(false)}
+                  style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCompleteCheckout} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label className="form-label">Occupied Room / Guest *</label>
+                  <select
+                    value={selectedCheckoutRoom}
+                    onChange={(e) => setSelectedCheckoutRoom(e.target.value)}
+                    className="input-clean"
+                    style={{ width: '100%', borderRadius: '10px' }}
+                  >
+                    <option value="101">Room 101 – Sophia Laurent (Folio: ₹11,760 - Settled)</option>
+                    <option value="102">Room 102 – Marcus Chen (Folio: ₹12,936 - Settled)</option>
+                    <option value="201">Room 201 – David Miller (Folio: ₹21,840 - Settled)</option>
+                    <option value="204">Room 204 – Amina Al-Mansoor (Folio: ₹14,200 - Settled)</option>
+                    {rooms
+                      .filter(r => r.status === 'Occupied')
+                      .map(r => (
+                        <option key={r.id} value={r.roomNumber}>
+                          Room {r.roomNumber} – {r.currentGuest || 'Occupied Guest'}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="form-label">Payment Settlement Method</label>
+                  <select
+                    value={checkoutPaymentMethod}
+                    onChange={(e) => setCheckoutPaymentMethod(e.target.value)}
+                    className="input-clean"
+                    style={{ width: '100%', borderRadius: '10px' }}
+                  >
+                    <option value="CreditCard">Credit / Debit Card (Stripe Terminal)</option>
+                    <option value="UPI">UPI / QR Payment (Razorpay)</option>
+                    <option value="Cash">Cash at Front Desk</option>
+                    <option value="CompanyBill">Direct Corporate Billing</option>
+                  </select>
+                </div>
+
+                <div style={{
+                  backgroundColor: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: '#64748B' }}>Room Category:</span>
+                    <span style={{ fontWeight: '700', color: '#0F172A' }}>Deluxe Suite (Room {selectedCheckoutRoom})</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: '#64748B' }}>Folio Balance Status:</span>
+                    <span style={{ fontWeight: '700', color: '#10B981' }}>₹0.00 (Fully Paid)</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#94A3B8', marginTop: '6px', paddingTop: '8px', borderTop: '1px solid #E2E8F0' }}>
+                    <Bed size={14} />
+                    <span>Room will transition to <strong>Dirty</strong>, dispatching an automated cleaning task to Housekeeping.</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+                  <button type="button" onClick={() => setShowGuestCheckoutModal(false)} className="btn-secondary">
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-primary" style={{ backgroundColor: '#0F172A', color: '#FFFFFF' }}>
+                    Finalize Checkout & Release Room
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* New Task Modal */}
-      {newTaskModal && (
-        <div className="modal-overlay">
-          <div className="modal-container" style={{ maxWidth: '440px', padding: '24px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '14px', color: '#0F172A' }}>
-              Add Management Task
-            </h3>
-            <input
-              type="text"
-              placeholder="e.g. VIP guest welcome gift in Room 301"
-              value={taskInput}
-              onChange={(e) => setTaskInput(e.target.value)}
-              className="input-clean"
-              style={{ width: '100%', marginBottom: '18px', borderRadius: '12px' }}
-              autoFocus
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setNewTaskModal(false)} className="btn-secondary">
-                Cancel
-              </button>
-              <button onClick={handleAddTask} className="btn-primary">
-                Add Task
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {newTaskModal && (
+          <motion.div
+            key="dashboard-new-task-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setNewTaskModal(false);
+            }}
+            className="modal-overlay"
+          >
+            <motion.div
+              key="dashboard-new-task-container"
+              initial={{ opacity: 0, scale: 0.93, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              className="modal-container"
+              style={{ maxWidth: '440px', padding: '24px' }}
+            >
+              <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '14px', color: '#0F172A' }}>
+                Add Management Task
+              </h3>
+              <input
+                type="text"
+                placeholder="e.g. VIP guest welcome gift in Room 301"
+                value={taskInput}
+                onChange={(e) => setTaskInput(e.target.value)}
+                className="input-clean"
+                style={{ width: '100%', marginBottom: '18px', borderRadius: '12px' }}
+                autoFocus
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button onClick={() => setNewTaskModal(false)} className="btn-secondary">
+                  Cancel
+                </button>
+                <button onClick={handleAddTask} className="btn-primary">
+                  Add Task
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
